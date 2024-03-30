@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-PYTHON_VERSION_COMPATIBILITY = 'PY3'
+PYTHON_VERSION_COMPATIBILITY = 'PY2+3'
 
 DEPS = [
   'depot_tools',
@@ -31,6 +31,12 @@ def RunSteps(api):
 
   api.step(
       'gsutil_py_path', ['ls', api.depot_tools.gsutil_py_path])
+
+  api.step(
+      'ninja_path', ['ls', api.depot_tools.ninja_path])
+
+  api.step(
+      'autoninja_path', ['ls', api.depot_tools.autoninja_path])
 
   api.step(
       'presubmit_support_py_path',

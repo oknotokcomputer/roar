@@ -26,7 +26,7 @@
 #define VREND_RENDERER_H
 
 #include "pipe/p_state.h"
-#include "util/list.h"
+#include "util/u_double_list.h"
 #include "util/u_inlines.h"
 #include "virgl_protocol.h"
 #include "vrend_debug.h"
@@ -77,7 +77,7 @@ struct vrend_resource {
    uint32_t storage_bits;
    uint32_t map_info;
 
-   GLuint gl_id;
+   GLuint id;
    GLenum target;
 
    GLuint tbo_tex_id;/* tbos have two ids to track */
@@ -116,54 +116,12 @@ struct vrend_resource {
 #define VIRGL_TEXTURE_CAN_TARGET_RECTANGLE (1 << 3)
 #define VIRGL_TEXTURE_CAN_MULTISAMPLE      (1 << 4)
 
-enum view_class {
-   view_class_unsupported,
-   view_class_128,
-   view_class_96,
-   view_class_64,
-   view_class_48,
-   view_class_32,
-   view_class_24,
-   view_class_16,
-   view_class_8,
-   view_class_rgtc1_red,
-   view_class_rgtc2_rg,
-   view_class_bptc_unorm,
-   view_class_bptc_float,
-   view_class_dxt1_rgb,
-   view_class_dxt1_rgba,
-   view_class_dxt3_rgba,
-   view_class_dxt5_rgba,
-   view_class_eac_r11,
-   view_class_eac_rg11,
-   view_class_etc2_r11,
-   view_class_etc2_rgb,
-   view_class_etc2_rgba,
-   view_class_etc2_eac_rgba,
-   view_class_astc_4x4_rgba,
-   view_class_astc_5x4_rgba,
-   view_class_astc_5x5_rgba,
-   view_class_astc_6x5_rgba,
-   view_class_astc_6x6_rgba,
-   view_class_astc_8x5_rgba,
-   view_class_astc_8x6_rgba,
-   view_class_astc_8x8_rgba,
-   view_class_astc_10x5_rgba,
-   view_class_astc_10x6_rgba,
-   view_class_astc_10x8_rgba,
-   view_class_astc_10x10_rgba,
-   view_class_astc_12x10_rgba,
-   view_class_astc_12x12_rgba
-};
-
-
 struct vrend_format_table {
    enum virgl_formats format;
    GLenum internalformat;
    GLenum glformat;
    GLenum gltype;
    enum pipe_swizzle swizzle[4];
-   enum view_class view_class;
    uint32_t bindings;
    uint32_t flags;
 };
@@ -225,17 +183,9 @@ void vrend_clear(struct vrend_context *ctx,
                  double depth, unsigned stencil);
 
 int vrend_clear_texture(struct vrend_context* ctx,
-                        struct vrend_resource *res, uint32_t level,
+                        uint32_t handle, uint32_t level,
                         const struct pipe_box *box,
                         const void * data);
-
-void vrend_clear_surface(struct vrend_context *ctx,
-                         uint32_t surf_handle,
-                         unsigned buffers,
-                         const union pipe_color_union *color,
-                         unsigned dstx, unsigned dsty,
-                         unsigned width, unsigned height,
-                         bool render_condition_enabled);
 
 int vrend_draw_vbo(struct vrend_context *ctx,
                    const struct pipe_draw_info *info,
@@ -283,12 +233,12 @@ vrend_renderer_resource_create(const struct vrend_renderer_resource_create_args 
 
 int vrend_create_surface(struct vrend_context *ctx, uint32_t handle,
                          struct vrend_resource *res,
-                         enum virgl_formats format, uint32_t level, uint32_t first_layer,
-                         uint32_t last_layer, uint32_t nr_samples);
+                         enum virgl_formats format, uint32_t val0, uint32_t val1,
+                         uint32_t nr_samples);
 int vrend_create_sampler_view(struct vrend_context *ctx, uint32_t handle,
                               struct vrend_resource *res, enum virgl_formats format,
-                              enum pipe_texture_target pipe_target, uint32_t val0,
-                              uint32_t val1, uint32_t swizzle_packed);
+                              enum pipe_texture_target pipe_target, uint32_t val0, uint32_t val1,
+                              uint32_t swizzle_packed);
 
 int vrend_create_sampler_state(struct vrend_context *ctx,
                                uint32_t handle,
@@ -326,13 +276,13 @@ int vrend_transfer_inline_write(struct vrend_context *ctx,
 
 int vrend_renderer_copy_transfer3d(struct vrend_context *ctx,
                                    uint32_t dst_handle,
-                                   struct vrend_resource *dst_res, struct vrend_resource *src_res,
+                                   uint32_t src_handle,
                                    const struct vrend_transfer_info *info);
 
-int vrend_renderer_copy_transfer3d_from_host(struct vrend_context *ctx, uint32_t dst_handle,
-                                             uint32_t src_handle,
-                                             struct vrend_resource *src_res, struct vrend_resource *dst_res,
-                                             const struct vrend_transfer_info *info);
+int vrend_renderer_copy_transfer3d_from_host(struct vrend_context *ctx,
+                                   uint32_t dst_handle,
+                                   uint32_t src_handle,
+                                   const struct vrend_transfer_info *info);
 
 void vrend_set_viewport_states(struct vrend_context *ctx,
                                uint32_t start_slot, uint32_t num_viewports,
@@ -365,7 +315,7 @@ void vrend_set_index_buffer(struct vrend_context *ctx,
                             uint32_t res_handle,
                             uint32_t index_size,
                             uint32_t offset);
-int vrend_set_single_image_view(struct vrend_context *ctx,
+void vrend_set_single_image_view(struct vrend_context *ctx,
                                  uint32_t shader_type,
                                  uint32_t index,
                                  uint32_t format, uint32_t access,
@@ -466,16 +416,16 @@ int vrend_create_query(struct vrend_context *ctx, uint32_t handle,
 
 int vrend_begin_query(struct vrend_context *ctx, uint32_t handle);
 int vrend_end_query(struct vrend_context *ctx, uint32_t handle);
-int vrend_get_query_result(struct vrend_context *ctx, uint32_t handle,
+void vrend_get_query_result(struct vrend_context *ctx, uint32_t handle,
                             uint32_t wait);
-int vrend_get_query_result_qbo(struct vrend_context *ctx, uint32_t handle,
+void vrend_get_query_result_qbo(struct vrend_context *ctx, uint32_t handle,
                                 uint32_t qbo_handle,
                                 uint32_t wait, uint32_t result_type, uint32_t offset,
                                 int32_t index);
 void vrend_render_condition(struct vrend_context *ctx,
                             uint32_t handle,
                             bool condtion,
-                            uint32_t mode);
+                            uint mode);
 void *vrend_renderer_get_cursor_contents(struct pipe_resource *pres,
                                          uint32_t *width,
                                          uint32_t *height);
@@ -507,7 +457,7 @@ vrend_resource_reference(struct vrend_resource **ptr, struct vrend_resource *tex
     * Check the comment in vrend_sampler_view_reference for more information.
     * Like above here only the address of the first element of *ptr.
     */
-   if (pipe_reference((struct pipe_reference *)*ptr, (struct pipe_reference *)tex))
+   if (pipe_reference(&(*ptr)->base.reference, &tex->base.reference))
       vrend_renderer_resource_destroy(old_tex);
    *ptr = tex;
 }
@@ -579,8 +529,8 @@ bool vrend_format_is_bgra(enum virgl_formats format);
 
 #define VREND_COPY_COMPAT_FLAG_ALLOW_COMPRESSED (1u << 0)
 #define VREND_COPY_COMPAT_FLAG_ONE_IS_EGL_IMAGE (1u << 1)
-bool format_is_copy_compatible(enum virgl_formats src, enum virgl_formats dst,
-                               unsigned int flags);
+boolean format_is_copy_compatible(enum virgl_formats src, enum virgl_formats dst,
+                                  unsigned int flags);
 
 void vrend_renderer_prepare_reset(void);
 void vrend_renderer_reset(void);

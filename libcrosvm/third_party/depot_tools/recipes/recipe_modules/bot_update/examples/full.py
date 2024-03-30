@@ -4,7 +4,7 @@
 
 from recipe_engine import post_process
 
-PYTHON_VERSION_COMPATIBILITY = 'PY3'
+PYTHON_VERSION_COMPATIBILITY = 'PY2+3'
 
 DEPS = [
   'bot_update',
@@ -71,7 +71,6 @@ def RunSteps(api):
   bot_update_output = engine_types.thaw(api.properties.get('bot_update_output'))
   if bot_update_output:
     step_test_data = lambda: api.json.test_api.output(bot_update_output)
-  rev_overrides = {'infra': 'HEAD'}
   bot_update_step = api.bot_update.ensure_checkout(
       patch=patch,
       with_branch_heads=with_branch_heads,
@@ -86,8 +85,7 @@ def RunSteps(api):
       add_blamelists=add_blamelists,
       set_output_commit=set_output_commit,
       step_test_data=step_test_data,
-      recipe_revision_overrides=rev_overrides,
-  )
+    )
   if patch:
     api.bot_update.deapply_patch(bot_update_step)
 
@@ -124,8 +122,10 @@ def GenTests(api):
           },
       ))
   )
-  yield (api.test('unrecognized_commit_repo', status="INFRA_FAILURE") +
-         ci_build(git_repo='https://unrecognized/repo'))
+  yield (
+      api.test('unrecognized_commit_repo') +
+      ci_build(git_repo='https://unrecognized/repo')
+  )
   yield (
       api.test('bot_update_failure') +
       ci_build() +
@@ -165,20 +165,28 @@ def GenTests(api):
       api.test('refs') +
       api.properties(refs=['+refs/change/1/2/333'])
   )
-  yield (api.test('tryjob_fail', status="INFRA_FAILURE") + try_build() +
-         api.step_data('bot_update', api.json.invalid(None), retcode=1))
-  yield (api.test('tryjob_fail_patch', status="FAILURE") + try_build() +
-         api.properties(fail_patch='apply') +
-         api.step_data('bot_update', retcode=88))
-  yield (api.test('tryjob_fail_patch_download', status="INFRA_FAILURE") +
-         try_build() + api.properties(fail_patch='download') +
-         api.step_data('bot_update', retcode=87))
   yield (
-      api.test('tryjob_fail_missing_bot_update_json', status="INFRA_FAILURE") +
-      try_build() + api.override_step_data('bot_update', retcode=1) +
-      api.post_process(post_process.ResultReasonRE, 'Infra Failure.*') +
-      api.post_process(post_process.StatusException) +
-      api.post_process(post_process.DropExpectation))
+      api.test('tryjob_fail') +
+      try_build() +
+      api.step_data('bot_update', api.json.invalid(None), retcode=1)
+  )
+  yield (
+      api.test('tryjob_fail_patch') +
+      try_build() +
+      api.properties(fail_patch='apply') +
+      api.step_data('bot_update', retcode=88)
+  )
+  yield (
+      api.test('tryjob_fail_patch_download') +
+      try_build() +
+      api.properties(fail_patch='download') +
+      api.step_data('bot_update', retcode=87)
+  )
+  yield (api.test('tryjob_fail_missing_bot_update_json') + try_build() +
+         api.override_step_data('bot_update', retcode=1) +
+         api.post_process(post_process.ResultReasonRE, 'Infra Failure.*') +
+         api.post_process(post_process.StatusException) +
+         api.post_process(post_process.DropExpectation))
   yield (
       api.test('clobber') +
       api.properties(clobber=1)
@@ -255,17 +263,6 @@ def GenTests(api):
           root='src', first_sln='src', revision_mapping={'got_revision': 'src'},
           commit_positions=False))
   )
-
-  yield (api.test('upload_traces', status="FAILURE") + try_build() +
-         api.properties(fail_patch='apply') +
-         api.step_data('bot_update', retcode=88))
-
-  yield (api.test('upload_traces_fail', status="FAILURE") + try_build() +
-         api.properties(fail_patch='apply') +
-         api.step_data('bot_update', retcode=88) + api.step_data(
-             'upload git traces.gsutil upload',
-             retcode=1,
-         ))
 
   yield (
       api.test('revision_specifying_ref') +

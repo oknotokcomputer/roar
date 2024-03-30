@@ -61,21 +61,12 @@ struct vkr_cs_decoder_temp_pool {
 
 struct vkr_cs_decoder {
    const struct hash_table *object_table;
-   mtx_t *object_mutex;
 
    bool *fatal_error;
    struct vkr_cs_decoder_temp_pool temp_pool;
 
-   /* Support vkExecuteCommandStreamsMESA for command buffer recording and indirect
-    * submission. Only a single level nested decoder state is needed. Base level is
-    * always from context or ring submit buffer, and no resource tracking is needed.
-    */
-   struct vkr_cs_decoder_saved_state saved_state;
-   bool saved_state_valid;
-
-   /* protect against resource destroy */
-   mtx_t resource_mutex;
-   const struct vkr_resource *resource;
+   struct vkr_cs_decoder_saved_state saved_states[1];
+   uint32_t saved_state_count;
 
    const uint8_t *cur;
    const uint8_t *end;
@@ -103,33 +94,13 @@ vkr_cs_encoder_set_fatal(const struct vkr_cs_encoder *enc)
 }
 
 void
-vkr_cs_encoder_set_stream_locked(struct vkr_cs_encoder *enc,
-                                 const struct vkr_resource *res,
-                                 size_t offset,
-                                 size_t size);
-
-void
-vkr_cs_encoder_seek_stream_locked(struct vkr_cs_encoder *enc, size_t pos);
-
-static inline void
 vkr_cs_encoder_set_stream(struct vkr_cs_encoder *enc,
                           const struct vkr_resource *res,
                           size_t offset,
-                          size_t size)
-{
+                          size_t size);
 
-   mtx_lock(&enc->mutex);
-   vkr_cs_encoder_set_stream_locked(enc, res, offset, size);
-   mtx_unlock(&enc->mutex);
-}
-
-static inline void
-vkr_cs_encoder_seek_stream(struct vkr_cs_encoder *enc, size_t pos)
-{
-   mtx_lock(&enc->mutex);
-   vkr_cs_encoder_seek_stream_locked(enc, pos);
-   mtx_unlock(&enc->mutex);
-}
+void
+vkr_cs_encoder_seek_stream(struct vkr_cs_encoder *enc, size_t pos);
 
 static inline void
 vkr_cs_encoder_check_stream(struct vkr_cs_encoder *enc, const struct vkr_resource *res)
@@ -142,7 +113,7 @@ vkr_cs_encoder_check_stream(struct vkr_cs_encoder *enc, const struct vkr_resourc
        * shmem (it can still live in the driver side shmem cache but will be used for
        * other purposes the next time being allocated out).
        */
-      vkr_cs_encoder_set_stream_locked(enc, NULL, 0, 0);
+      vkr_cs_encoder_set_stream(enc, NULL, 0, 0);
    }
    mtx_unlock(&enc->mutex);
 }
@@ -155,9 +126,7 @@ vkr_cs_encoder_write(struct vkr_cs_encoder *enc,
 {
    assert(val_size <= size);
 
-   mtx_lock(&enc->mutex);
    if (unlikely(size > (size_t)(enc->end - enc->cur))) {
-      mtx_unlock(&enc->mutex);
       vkr_log("failed to write the reply stream");
       vkr_cs_encoder_set_fatal(enc);
       return;
@@ -166,11 +135,12 @@ vkr_cs_encoder_write(struct vkr_cs_encoder *enc,
    /* we should not rely on the compiler to optimize away memcpy... */
    memcpy(enc->cur, val, val_size);
    enc->cur += size;
-   mtx_unlock(&enc->mutex);
 }
 
-int
-vkr_cs_decoder_init(struct vkr_cs_decoder *dec, struct vkr_context *ctx);
+void
+vkr_cs_decoder_init(struct vkr_cs_decoder *dec,
+                    bool *fatal_error,
+                    const struct hash_table *object_table);
 
 void
 vkr_cs_decoder_fini(struct vkr_cs_decoder *dec);
@@ -191,28 +161,10 @@ vkr_cs_decoder_get_fatal(const struct vkr_cs_decoder *dec)
 }
 
 static inline void
-vkr_cs_decoder_set_buffer_stream(struct vkr_cs_decoder *dec,
-                                 const void *data,
-                                 size_t size)
+vkr_cs_decoder_set_stream(struct vkr_cs_decoder *dec, const void *data, size_t size)
 {
    dec->cur = data;
    dec->end = dec->cur + size;
-}
-
-bool
-vkr_cs_decoder_set_resource_stream(struct vkr_cs_decoder *dec,
-                                   struct vkr_context *ctx,
-                                   uint32_t res_id,
-                                   size_t offset,
-                                   size_t size);
-
-static inline bool
-vkr_cs_decoder_check_stream(struct vkr_cs_decoder *dec, const struct vkr_resource *res)
-{
-   mtx_lock(&dec->resource_mutex);
-   const bool ok = dec->resource != res;
-   mtx_unlock(&dec->resource_mutex);
-   return ok;
 }
 
 static inline bool
@@ -221,17 +173,11 @@ vkr_cs_decoder_has_command(const struct vkr_cs_decoder *dec)
    return dec->cur < dec->end;
 }
 
-static inline bool
-vkr_cs_decoder_has_saved_state(struct vkr_cs_decoder *dec)
-{
-   return dec->saved_state_valid;
-}
+bool
+vkr_cs_decoder_push_state(struct vkr_cs_decoder *dec);
 
 void
-vkr_cs_decoder_save_state(struct vkr_cs_decoder *dec);
-
-void
-vkr_cs_decoder_restore_state(struct vkr_cs_decoder *dec);
+vkr_cs_decoder_pop_state(struct vkr_cs_decoder *dec);
 
 static inline bool
 vkr_cs_decoder_peek_internal(const struct vkr_cs_decoder *dec,
@@ -279,16 +225,14 @@ vkr_cs_decoder_lookup_object(const struct vkr_cs_decoder *dec,
    if (!id)
       return NULL;
 
-   mtx_lock(dec->object_mutex);
    const struct hash_entry *entry =
       _mesa_hash_table_search((struct hash_table *)dec->object_table, &id);
    obj = likely(entry) ? entry->data : NULL;
-   mtx_unlock(dec->object_mutex);
    if (unlikely(!obj || obj->type != type)) {
       if (obj)
          vkr_log("object %" PRIu64 " has type %d, not %d", id, obj->type, type);
       else
-         vkr_log("failed to look up object %" PRIu64 " of type %d", id, type);
+         vkr_log("failed to look up object %" PRIu64, id);
       vkr_cs_decoder_set_fatal(dec);
    }
 

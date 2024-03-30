@@ -3,15 +3,10 @@
 # found in the LICENSE file.
 
 from recipe_engine import recipe_api
-from recipe_engine.config_types import Path
 
-from typing import Optional
-
+import string
 
 class GitClApi(recipe_api.RecipeApi):
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    self._default_repo_location: Optional[Path] = None
 
   def __call__(self, subcmd, args, name=None, **kwargs):
     if not name:
@@ -20,18 +15,11 @@ class GitClApi(recipe_api.RecipeApi):
     if kwargs.get('suffix'):
       name = name + ' (%s)' % kwargs.pop('suffix')
 
-    my_loc = self._default_repo_location
-    cmd = ['vpython3', self.repo_resource('git_cl.py'), subcmd] + args
+    my_loc = self.c.repo_location if self.c else None
     with self.m.context(cwd=self.m.context.cwd or my_loc):
-      return self.m.step(name, cmd, **kwargs)
-
-  def set_default_repo_location(self, path: Optional[Path]):
-    """Sets the working directory where `git cl` will run, unless `cwd` from the
-    context module has been set.
-
-    If you set `path` to None, this will remove the default.
-    """
-    self._default_repo_location = path
+      return self.m.python(
+          name, self.repo_resource('git_cl.py'), [subcmd] + args,
+          venv=True, **kwargs)
 
   def get_description(self, patch_url=None, **kwargs):
     """DEPRECATED. Consider using gerrit.get_change_description instead."""

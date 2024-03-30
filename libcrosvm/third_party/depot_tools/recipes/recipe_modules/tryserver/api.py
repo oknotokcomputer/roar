@@ -92,7 +92,6 @@ class TryserverApi(recipe_api.RecipeApi):
     Populated iff gerrit_change is populated.
     Is a dictionary with keys like "name".
     """
-    self._ensure_gerrit_change_info()
     return self._gerrit_change_owner
 
   @property
@@ -140,7 +139,7 @@ class TryserverApi(recipe_api.RecipeApi):
         o_params=['ALL_REVISIONS', 'DOWNLOAD_COMMANDS'],
         limit=1,
         name='fetch current CL info',
-        timeout=480,
+        timeout=60,
         step_test_data=lambda: self.m.json.test_api.output(mock_res))[0]
 
     self._gerrit_change_target_ref = res['branch']
@@ -152,7 +151,7 @@ class TryserverApi(recipe_api.RecipeApi):
       if int(rev['_number']) == self.gerrit_change.patchset:
         self._gerrit_change_fetch_ref = rev['ref']
         break
-    self._gerrit_change_owner = dict(res['owner'])
+    self._gerrit_change_owner = res['owner']
     self._gerrit_info_initialized = True
 
   @property
@@ -333,6 +332,8 @@ class TryserverApi(recipe_api.RecipeApi):
     """
     self._set_failure_type('TEST_EXPIRED')
 
+  # TODO(crbug.com/1179039): switch the test in examples/full.py to not use
+  # patch_text, and drop the argument entirely from all the get_footer variants.
   def get_footers(self, patch_text=None):
     """Retrieves footers from the patch description.
 
@@ -343,20 +344,17 @@ class TryserverApi(recipe_api.RecipeApi):
 
   def _ensure_gerrit_commit_message(self):
     """Fetch full commit message for Gerrit change."""
-    if self._gerrit_commit_message:
-      return
-
     self._ensure_gerrit_change_info()
     self._gerrit_commit_message = self.m.gerrit.get_change_description(
         'https://%s' % self.gerrit_change.host,
         self.gerrit_change_number,
         self.gerrit_patchset_number,
-        timeout=480)
+        timeout=60)
 
   def _get_footers(self, patch_text=None):
     if patch_text is not None:
       return self._get_footer_step(patch_text)
-    if self._change_footers is not None:
+    if self._change_footers:  #pragma: nocover
       return self._change_footers
     if self.gerrit_change:
       self._ensure_gerrit_commit_message()
@@ -366,31 +364,24 @@ class TryserverApi(recipe_api.RecipeApi):
         'No patch text or associated changelist, cannot get footers')  #pragma: nocover
 
   def _get_footer_step(self, patch_text):
-    result = self.m.step(
-        'parse description',
-        [
-            'python3',
-            self.repo_resource('git_footers.py'),
-            '--json',
-            self.m.json.output(),
-        ],
-        stdin=self.m.raw_io.input(data=patch_text),
-        step_test_data=lambda: self.m.json.test_api.output({}),
-    )
+    result = self.m.step('parse description', [
+        'python3',
+        self.repo_resource('git_footers.py'), '--json',
+        self.m.json.output()
+    ],
+                         stdin=self.m.raw_io.input(data=patch_text))
     return result.json.output
 
   def get_footer(self, tag, patch_text=None):
     """Gets a specific tag from a CL description"""
     footers = self._get_footers(patch_text)
+    if footers is None:
+      return []
+
     return footers.get(tag, [])
 
   def normalize_footer_name(self, footer):
     return '-'.join([ word.title() for word in footer.strip().split('-') ])
-
-  def get_change_description(self):
-    """Gets the CL description."""
-    self._ensure_gerrit_commit_message()
-    return self._gerrit_commit_message
 
   def set_change(self, change):
     """Set the gerrit change for this module.

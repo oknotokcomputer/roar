@@ -10,7 +10,6 @@
 #define _TEST_UTIL_H_
 
 #include <stdio.h>
-#include <unistd.h>
 
 #include <memory>
 #include <string>
@@ -39,15 +38,6 @@ struct ScopedConfigEntryDeleter {
   }
 };
 
-// Functor for |ScopedStr| (below).
-struct ScopedStrDeleter {
-  inline void operator()(char *str) const {
-    if (str) {
-      free(str);
-    }
-  }
-};
-
 } // namespace internal
 
 } // namespace mj
@@ -55,24 +45,6 @@ struct ScopedStrDeleter {
 using ScopedFILE = std::unique_ptr<FILE, mj::internal::ScopedFILECloser>;
 using ScopedConfigEntry =
     std::unique_ptr<config_entry, mj::internal::ScopedConfigEntryDeleter>;
-using ScopedStr = std::unique_ptr<char, mj::internal::ScopedStrDeleter>;
-
-class ScopedFD {
- public:
-  explicit ScopedFD(int fd) : fd_(fd) {}
-  ~ScopedFD() {
-    if (fd_ != -1)
-      close(fd_);
-  }
-
-  ScopedFD(const ScopedFD&) = delete;
-  ScopedFD& operator=(const ScopedFD&) = delete;
-
-  int get() const { return fd_; }
-
- private:
-  int fd_ = -1;
-};
 
 /*
  * write_to_pipe: write a string as the file content into a pipe based

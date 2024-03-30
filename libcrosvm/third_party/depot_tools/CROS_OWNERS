@@ -1,3 +1,8 @@
 # Chrome OS developers looking over Chrome OS related files.
-include chromiumos/owners:v1:/infra/OWNERS.ci
-include chromiumos/owners:v1:/infra/OWNERS.build
+cjmcdonald@chromium.org
+lamontjones@chromium.org
+nednguyen@chromium.org
+saklein@chromium.org
+sbelmon@google.com
+sfrolov@google.com
+vapier@chromium.org

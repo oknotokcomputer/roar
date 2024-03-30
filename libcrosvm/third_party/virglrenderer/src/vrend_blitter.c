@@ -403,7 +403,7 @@ static GLuint blit_get_frag_tex_col(struct vrend_blitter_ctx *blit_ctx,
                                        uint32_t flags)
 {
    bool needs_swizzle = false;
-   for (unsigned i = 0; i < 4; ++i) {
+   for (uint i = 0; i < 4; ++i) {
       if (swizzle[i] != i) {
          needs_swizzle = true;
          break;
@@ -578,7 +578,7 @@ static void blitter_set_texcoords(struct vrend_blitter_ctx *blit_ctx,
                                         /* pointer, stride in floats */
                                         &face_coord[0][0], 2,
                                         &blit_ctx->vertices[0].tex.x, 8,
-                                        false);
+                                        FALSE);
    } else {
       set_texcoords_in_vertices(coord, &blit_ctx->vertices[0].tex.x, 8);
    }
@@ -628,12 +628,12 @@ static void set_dsa_write_depth_keep_stencil(void)
 static inline GLenum to_gl_swizzle(enum pipe_swizzle swizzle)
 {
    switch (swizzle) {
-   case PIPE_SWIZZLE_X: return GL_RED;
-   case PIPE_SWIZZLE_Y: return GL_GREEN;
-   case PIPE_SWIZZLE_Z: return GL_BLUE;
-   case PIPE_SWIZZLE_W: return GL_ALPHA;
-   case PIPE_SWIZZLE_0: return GL_ZERO;
-   case PIPE_SWIZZLE_1: return GL_ONE;
+   case PIPE_SWIZZLE_RED: return GL_RED;
+   case PIPE_SWIZZLE_GREEN: return GL_GREEN;
+   case PIPE_SWIZZLE_BLUE: return GL_BLUE;
+   case PIPE_SWIZZLE_ALPHA: return GL_ALPHA;
+   case PIPE_SWIZZLE_ZERO: return GL_ZERO;
+   case PIPE_SWIZZLE_ONE: return GL_ONE;
    default:
       assert(0);
       return 0;
@@ -906,17 +906,17 @@ void vrend_renderer_blit_gl(ASSERTED struct vrend_context *ctx,
    glBindTexture(src_res->target, 0);
 }
 
-static void delete_program_cb(struct hash_entry *entry)
-{
-   glDeleteProgram((GLuint)pointer_to_uintptr(entry->data));
-}
-
 void vrend_blitter_fini(void)
 {
    vrend_blit_ctx.initialised = false;
-   if (vrend_blit_ctx.blit_programs)
-      _mesa_hash_table_u64_destroy(vrend_blit_ctx.blit_programs, delete_program_cb);
    vrend_clicbs->destroy_gl_context(vrend_blit_ctx.gl_context);
+   if (vrend_blit_ctx.blit_programs) {
+      hash_table_foreach(vrend_blit_ctx.blit_programs->table, entry) {
+         glDeleteProgram((GLuint)pointer_to_uintptr(entry->data));
+      }
+
+      _mesa_hash_table_u64_destroy(vrend_blit_ctx.blit_programs);
+   }
    memset(&vrend_blit_ctx, 0, sizeof(vrend_blit_ctx));
 }
 

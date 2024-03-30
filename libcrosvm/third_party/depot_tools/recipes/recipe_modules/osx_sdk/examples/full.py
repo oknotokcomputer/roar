@@ -2,14 +2,13 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-PYTHON_VERSION_COMPATIBILITY = 'PY3'
+PYTHON_VERSION_COMPATIBILITY = 'PY2+3'
 
 DEPS = [
-    'osx_sdk',
-    'recipe_engine/platform',
-    'recipe_engine/properties',
-    'recipe_engine/raw_io',
-    'recipe_engine/step',
+  'osx_sdk',
+  'recipe_engine/platform',
+  'recipe_engine/properties',
+  'recipe_engine/step',
 ]
 
 
@@ -35,13 +34,11 @@ def GenTests(api):
   yield api.test(
       'automatic_version',
       api.platform.name('mac'),
-      api.step_data('find macOS version',
-                    stdout=api.raw_io.output_text('10.15.6')),
+      api.platform.mac_release('10.15.6'),
   )
 
   yield api.test(
       'ancient_version',
       api.platform.name('mac'),
-      api.step_data('find macOS version',
-                    stdout=api.raw_io.output_text('10.1.0')),
+      api.platform.mac_release('10.1.0'),
   )

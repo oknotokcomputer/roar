@@ -4,7 +4,7 @@
 
 from recipe_engine import post_process
 
-PYTHON_VERSION_COMPATIBILITY = 'PY3'
+PYTHON_VERSION_COMPATIBILITY = 'PY2+3'
 
 DEPS = [
   'recipe_engine/path',
@@ -22,5 +22,5 @@ def GenTests(api):
       api.override_step_data('gclient sync', retcode=1),
       # Should not fail with uncaught exception
       api.post_process(post_process.ResultReasonRE, r'^(?!Uncaught Exception)'),
-      api.post_process(post_process.DropExpectation),
-      status="INFRA_FAILURE")
+      api.post_process(post_process.DropExpectation)
+  )

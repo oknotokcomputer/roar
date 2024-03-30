@@ -1403,20 +1403,6 @@ vn_decode_VkSubmitFlagBits(struct vn_cs_decoder *dec, VkSubmitFlagBits *val)
     vn_decode_int32_t(dec, (int32_t *)val);
 }
 
-/* enum VkGraphicsPipelineLibraryFlagBitsEXT */
-
-static inline void
-vn_encode_VkGraphicsPipelineLibraryFlagBitsEXT(struct vn_cs_encoder *enc, const VkGraphicsPipelineLibraryFlagBitsEXT *val)
-{
-    vn_encode_int32_t(enc, (const int32_t *)val);
-}
-
-static inline void
-vn_decode_VkGraphicsPipelineLibraryFlagBitsEXT(struct vn_cs_decoder *dec, VkGraphicsPipelineLibraryFlagBitsEXT *val)
-{
-    vn_decode_int32_t(dec, (int32_t *)val);
-}
-
 /* enum VkAttachmentLoadOp */
 
 static inline void
@@ -1661,18 +1647,6 @@ static inline void
 vn_decode_VkImageLayout(struct vn_cs_decoder *dec, VkImageLayout *val)
 {
     vn_decode_int32_t(dec, (int32_t *)val);
-}
-
-static inline void
-vn_encode_VkImageLayout_array(struct vn_cs_encoder *enc, const VkImageLayout *val, uint32_t count)
-{
-    vn_encode_int32_t_array(enc, (const int32_t *)val, count);
-}
-
-static inline void
-vn_decode_VkImageLayout_array(struct vn_cs_decoder *dec, VkImageLayout *val, uint32_t count)
-{
-    vn_decode_int32_t_array(dec, (int32_t *)val, count);
 }
 
 /* enum VkImageTiling */
@@ -2171,20 +2145,6 @@ vn_decode_VkSamplerReductionMode(struct vn_cs_decoder *dec, VkSamplerReductionMo
     vn_decode_int32_t(dec, (int32_t *)val);
 }
 
-/* enum VkBlendOverlapEXT */
-
-static inline void
-vn_encode_VkBlendOverlapEXT(struct vn_cs_encoder *enc, const VkBlendOverlapEXT *val)
-{
-    vn_encode_int32_t(enc, (const int32_t *)val);
-}
-
-static inline void
-vn_decode_VkBlendOverlapEXT(struct vn_cs_decoder *dec, VkBlendOverlapEXT *val)
-{
-    vn_decode_int32_t(dec, (int32_t *)val);
-}
-
 /* enum VkShaderFloatControlsIndependence */
 
 static inline void
@@ -2197,32 +2157,6 @@ static inline void
 vn_decode_VkShaderFloatControlsIndependence(struct vn_cs_decoder *dec, VkShaderFloatControlsIndependence *val)
 {
     vn_decode_int32_t(dec, (int32_t *)val);
-}
-
-/* enum VkFragmentShadingRateCombinerOpKHR */
-
-static inline void
-vn_encode_VkFragmentShadingRateCombinerOpKHR(struct vn_cs_encoder *enc, const VkFragmentShadingRateCombinerOpKHR *val)
-{
-    vn_encode_int32_t(enc, (const int32_t *)val);
-}
-
-static inline void
-vn_decode_VkFragmentShadingRateCombinerOpKHR(struct vn_cs_decoder *dec, VkFragmentShadingRateCombinerOpKHR *val)
-{
-    vn_decode_int32_t(dec, (int32_t *)val);
-}
-
-static inline void
-vn_encode_VkFragmentShadingRateCombinerOpKHR_array(struct vn_cs_encoder *enc, const VkFragmentShadingRateCombinerOpKHR *val, uint32_t count)
-{
-    vn_encode_int32_t_array(enc, (const int32_t *)val, count);
-}
-
-static inline void
-vn_decode_VkFragmentShadingRateCombinerOpKHR_array(struct vn_cs_decoder *dec, VkFragmentShadingRateCombinerOpKHR *val, uint32_t count)
-{
-    vn_decode_int32_t_array(dec, (int32_t *)val, count);
 }
 
 /* enum VkVendorId */

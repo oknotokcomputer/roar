@@ -3,110 +3,6 @@
     "cmd": [
       "vpython3",
       "-u",
-      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
-      "--json-output",
-      "/path/to/tmp/json",
-      "copy",
-      "foo",
-      "/path/to/tmp/"
-    ],
-    "infra_step": true,
-    "name": "Read DEPS file",
-    "~followup_annotations": [
-      "@@@STEP_LOG_LINE@foo@@@@",
-      "@@@STEP_LOG_LINE@foo@git_dependencies = 'SYNC'@@@",
-      "@@@STEP_LOG_END@foo@@@"
-    ]
-  },
-  {
-    "cmd": [
-      "vpython3",
-      "-u",
-      "RECIPE_REPO[depot_tools]/gclient.py",
-      "setdep",
-      "--deps-file",
-      "foo",
-      "-r",
-      "foo@2222222222222222222222222222222222222222"
-    ],
-    "env_suffixes": {
-      "PATH": [
-        "RECIPE_REPO[depot_tools]"
-      ]
-    },
-    "infra_step": true,
-    "name": "gclient setdep"
-  },
-  {
-    "cmd": [
-      "vpython3",
-      "-u",
-      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
-      "--json-output",
-      "/path/to/tmp/json",
-      "copy",
-      "foo",
-      "/path/to/tmp/"
-    ],
-    "infra_step": true,
-    "name": "Read modified DEPS"
-  },
-  {
-    "cmd": [
-      "vpython3",
-      "-u",
-      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
-      "--json-output",
-      "/path/to/tmp/json",
-      "copy",
-      "\ngit_dependencies = 'SYNC'\n",
-      "/path/to/tmp/"
-    ],
-    "infra_step": true,
-    "name": "Read DEPS file (2)",
-    "~followup_annotations": [
-      "@@@STEP_LOG_LINE@\ngit_dependencies = 'SYNC'\n@@@@",
-      "@@@STEP_LOG_LINE@\ngit_dependencies = 'SYNC'\n@git_dependencies = 'SYNC'@@@",
-      "@@@STEP_LOG_END@\ngit_dependencies = 'SYNC'\n@@@"
-    ]
-  },
-  {
-    "cmd": [
-      "vpython3",
-      "-u",
-      "RECIPE_REPO[depot_tools]/gclient.py",
-      "setdep",
-      "--deps-file",
-      "\ngit_dependencies = 'SYNC'\n",
-      "-r",
-      "src/bar@2222222222222222222222222222222222222222"
-    ],
-    "env_suffixes": {
-      "PATH": [
-        "RECIPE_REPO[depot_tools]"
-      ]
-    },
-    "infra_step": true,
-    "name": "gclient setdep (2)"
-  },
-  {
-    "cmd": [
-      "vpython3",
-      "-u",
-      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
-      "--json-output",
-      "/path/to/tmp/json",
-      "copy",
-      "\ngit_dependencies = 'SYNC'\n",
-      "/path/to/tmp/"
-    ],
-    "infra_step": true,
-    "name": "Read modified DEPS (2)"
-  },
-  {
-    "cmd": [
-      "vpython3",
-      "-u",
       "RECIPE_REPO[depot_tools]/gclient.py",
       "config",
       "--spec",
@@ -247,7 +143,7 @@
       "@@@STEP_LOG_LINE@json.output@  \"solutions\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"Angle/\": {@@@",
       "@@@STEP_LOG_LINE@json.output@      \"revision\": \"1fd70473fb3de634b409d4acaf49ffc1f90aae1f\"@@@",
-      "@@@STEP_LOG_LINE@json.output@    },@@@",
+      "@@@STEP_LOG_LINE@json.output@    }, @@@",
       "@@@STEP_LOG_LINE@json.output@    \"src/blatley/\": {@@@",
       "@@@STEP_LOG_LINE@json.output@      \"revision\": \"5e800497199d615131a76cd10651e74d7c8a0962\"@@@",
       "@@@STEP_LOG_LINE@json.output@    }@@@",
@@ -299,12 +195,27 @@
   },
   {
     "cmd": [
-      "python3",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gclient]/resources/cleanup.py",
+      "python",
+      "\nfrom __future__ import print_function\nimport os, sys\n\nbuild_path = sys.argv[1]\nif os.path.exists(build_path):\n  for (path, dir, files) in os.walk(build_path):\n    for cur_file in files:\n      if cur_file.endswith('index.lock'):\n        path_to_file = os.path.join(path, cur_file)\n        print('deleting %s' % path_to_file)\n        os.remove(path_to_file)\n",
       "[START_DIR]"
     ],
-    "name": "cleanup index.lock"
+    "infra_step": true,
+    "name": "cleanup index.lock",
+    "~followup_annotations": [
+      "@@@STEP_LOG_LINE@python.inline@@@@",
+      "@@@STEP_LOG_LINE@python.inline@from __future__ import print_function@@@",
+      "@@@STEP_LOG_LINE@python.inline@import os, sys@@@",
+      "@@@STEP_LOG_LINE@python.inline@@@@",
+      "@@@STEP_LOG_LINE@python.inline@build_path = sys.argv[1]@@@",
+      "@@@STEP_LOG_LINE@python.inline@if os.path.exists(build_path):@@@",
+      "@@@STEP_LOG_LINE@python.inline@  for (path, dir, files) in os.walk(build_path):@@@",
+      "@@@STEP_LOG_LINE@python.inline@    for cur_file in files:@@@",
+      "@@@STEP_LOG_LINE@python.inline@      if cur_file.endswith('index.lock'):@@@",
+      "@@@STEP_LOG_LINE@python.inline@        path_to_file = os.path.join(path, cur_file)@@@",
+      "@@@STEP_LOG_LINE@python.inline@        print('deleting %s' % path_to_file)@@@",
+      "@@@STEP_LOG_LINE@python.inline@        os.remove(path_to_file)@@@",
+      "@@@STEP_LOG_END@python.inline@@@"
+    ]
   },
   {
     "cmd": [

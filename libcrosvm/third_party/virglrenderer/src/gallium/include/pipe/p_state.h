@@ -42,7 +42,7 @@
 
 #include "p_compiler.h"
 #include "p_defines.h"
-#include "util/u_formats.h"
+#include "p_format.h"
 
 
 #ifdef __cplusplus
@@ -295,7 +295,7 @@ struct pipe_blend_color
 
 struct pipe_stencil_ref
 {
-   uint8_t ref_value[2];
+   ubyte ref_value[2];
 };
 
 struct pipe_framebuffer_state
@@ -318,12 +318,13 @@ struct pipe_sampler_state
    unsigned wrap_s:3;            /**< PIPE_TEX_WRAP_x */
    unsigned wrap_t:3;            /**< PIPE_TEX_WRAP_x */
    unsigned wrap_r:3;            /**< PIPE_TEX_WRAP_x */
-   unsigned min_img_filter:1;    /**< PIPE_TEX_FILTER_x */
+   unsigned min_img_filter:2;    /**< PIPE_TEX_FILTER_x */
    unsigned min_mip_filter:2;    /**< PIPE_TEX_MIPFILTER_x */
-   unsigned mag_img_filter:1;    /**< PIPE_TEX_FILTER_x */
+   unsigned mag_img_filter:2;    /**< PIPE_TEX_FILTER_x */
    unsigned compare_mode:1;      /**< PIPE_TEX_COMPARE_x */
    unsigned compare_func:3;      /**< PIPE_FUNC_x */
-   unsigned max_anisotropy:5;
+   unsigned normalized_coords:1; /**< Are coords normalized to [0,1]? */
+   unsigned max_anisotropy:6;
    unsigned seamless_cube_map:1;
    float lod_bias;               /**< LOD/lambda bias */
    float min_lod, max_lod;       /**< LOD clamp range, after bias */
@@ -572,8 +573,8 @@ struct pipe_draw_indirect_info
  */
 struct pipe_draw_info
 {
-   bool indexed;  /**< use index buffer */
-   uint8_t vertices_per_patch; /**< the number of vertices per patch */
+   boolean indexed;  /**< use index buffer */
+   ubyte vertices_per_patch; /**< the number of vertices per patch */
 
    unsigned mode;  /**< the mode of the primitive */
    unsigned start;  /**< the index of the first vertex */
@@ -593,7 +594,7 @@ struct pipe_draw_info
    /**
     * Primitive restart enable/index (only applies to indexed drawing)
     */
-   bool primitive_restart;
+   boolean primitive_restart;
    unsigned restart_index;
 
    struct pipe_draw_indirect_info indirect;
@@ -632,12 +633,12 @@ struct pipe_blit_info
    unsigned mask; /**< bitmask of PIPE_MASK_R/G/B/A/Z/S */
    unsigned filter; /**< PIPE_TEX_FILTER_* */
 
-   bool scissor_enable;
+   boolean scissor_enable;
    struct pipe_scissor_state scissor;
 
-   bool render_condition_enable; /**< whether the blit should honor the
+   boolean render_condition_enable; /**< whether the blit should honor the
                                        current render condition */
-   bool alpha_blend; /* dst.rgb = src.rgb * src.a + dst.rgb * (1 - src.a) */
+   boolean alpha_blend; /* dst.rgb = src.rgb * src.a + dst.rgb * (1 - src.a) */
 };
 
 

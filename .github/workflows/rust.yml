@@ -3,7 +3,11 @@ name: Build and Test
 on:
   pull_request:
     branches: ["main"]
-
+  push:
+    branches: [ "main" ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ "main" ]
 env:
   CARGO_TERM_COLOR: always
 
@@ -21,7 +25,8 @@ jobs:
           - "nightly" # nightly
         crate:
           - "jetstream"
-          - "libcrosvm"          
+          - "libcrosvm"
+          - "bldy"
     steps:
       - uses: actions/checkout@v3
       - name: Set up Rust ${{ matrix.rust }}

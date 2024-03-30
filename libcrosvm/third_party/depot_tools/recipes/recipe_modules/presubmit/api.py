@@ -28,23 +28,39 @@ class PresubmitApi(recipe_api.RecipeApi):
   def __call__(self, *args, **kwargs):
     """Returns a presubmit step."""
 
+    kwargs['venv'] = True
     name = kwargs.pop('name', 'presubmit')
     with self.m.depot_tools.on_path():
-      cmd = ['vpython3', self.presubmit_support_path]
-      cmd.extend(args)
-      cmd.extend(['--json_output', self.m.json.output()])
+      presubmit_args = list(args) + [
+          '--json_output', self.m.json.output(),
+      ]
       if self.m.resultdb.enabled:
         kwargs['wrapper'] = ('rdb', 'stream', '--')
-      step_data = self.m.step(name, cmd, **kwargs)
+      step_data = self.m.python(
+          name, self.presubmit_support_path, presubmit_args, **kwargs)
       output = step_data.json.output or {}
-      return output
+      if self.m.step.active_result.retcode != 0:
+        return output
 
-  @property
-  def _relative_root(self):
-    if self.m.tryserver.is_tryserver:
-      return self.m.gclient.get_gerrit_patch_root().rstrip('/')
-    else:
-      return self.m.gclient.c.solutions[0].name.rstrip('/')
+      # Run with vpython3 directly
+      del (kwargs['venv'])
+      presubmit_args = list(args) + [
+          '--json_output',
+          self.m.json.output(),
+      ]
+      step_data = self.m.step(name + " py3",
+                              ['vpython3', self.presubmit_support_path] +
+                              presubmit_args, **kwargs)
+      output2 = step_data.json.output or {}
+
+      # combine outputs
+      for key in output:
+        if key in output2:
+          output[key] += output2[key]
+          del (output2[key])
+      for key in output2:
+        output[key] = output2[key]
+      return output
 
   def prepare(self, root_solution_revision=None):
     """Sets up a presubmit run.
@@ -69,30 +85,21 @@ class PresubmitApi(recipe_api.RecipeApi):
         self.m.properties.get('root_solution_revision'))
 
     # Expect callers to have already set up their gclient configuration.
-
     bot_update_step = self.m.bot_update.ensure_checkout(
-        timeout=3600,
-        no_fetch_tags=True,
+        timeout=3600, no_fetch_tags=True,
         root_solution_revision=root_solution_revision)
 
-    abs_root = self.m.context.cwd.join(self._relative_root)
-    if self.m.tryserver.is_tryserver:
-      with self.m.context(cwd=abs_root):
-        # TODO(unowned): Consider either:
-        #  - extracting user name & email address from the issue, or
-        #  - using a dedicated and clearly nonexistent name/email address
-        self.m.git('-c',
-                   'user.email=commit-bot@chromium.org',
-                   '-c',
-                   'user.name=The Commit Bot',
-                   '-c',
-                   'diff.ignoreSubmodules=all',
-                   'commit',
-                   '-a',
-                   '-m',
-                   'Committed patch',
-                   name='commit-git-patch',
-                   infra_step=False)
+    relative_root = self.m.gclient.get_gerrit_patch_root().rstrip('/')
+
+    abs_root = self.m.context.cwd.join(relative_root)
+    with self.m.context(cwd=abs_root):
+      # TODO(unowned): Consider either:
+      #  - extracting user name & email address from the issue, or
+      #  - using a dedicated and clearly nonexistent name/email address
+      self.m.git('-c', 'user.email=commit-bot@chromium.org',
+              '-c', 'user.name=The Commit Bot',
+              'commit', '-a', '-m', 'Committed patch',
+              name='commit-git-patch', infra_step=False)
 
     if self._runhooks:
       with self.m.context(cwd=self.m.path['checkout']):
@@ -100,7 +107,7 @@ class PresubmitApi(recipe_api.RecipeApi):
 
     return bot_update_step
 
-  def execute(self, bot_update_step, skip_owners=False, run_all=False):
+  def execute(self, bot_update_step, skip_owners=False):
     """Runs presubmit and sets summary markdown if applicable.
 
     Args:
@@ -110,54 +117,33 @@ class PresubmitApi(recipe_api.RecipeApi):
     Returns:
       a RawResult object, suitable for being returned from RunSteps.
     """
-    abs_root = self.m.context.cwd.join(self._relative_root)
+    relative_root = self.m.gclient.get_gerrit_patch_root().rstrip('/')
+    abs_root = self.m.context.cwd.join(relative_root)
     got_revision_properties = self.m.bot_update.get_project_revision_properties(
         # Replace path.sep with '/', since most recipes are written assuming '/'
         # as the delimiter. This breaks on windows otherwise.
-        self._relative_root.replace(self.m.path.sep, '/'),
-        self.m.gclient.c)
+        relative_root.replace(self.m.path.sep, '/'), self.m.gclient.c)
     upstream = bot_update_step.json.output['properties'].get(
         got_revision_properties[0])
 
-    presubmit_args = []
-    if self.m.tryserver.is_tryserver:
-      presubmit_args = [
-          '--issue',
-          self.m.tryserver.gerrit_change.change,
-          '--patchset',
-          self.m.tryserver.gerrit_change.patchset,
-          '--gerrit_url',
-          'https://%s' % self.m.tryserver.gerrit_change.host,
-          '--gerrit_project',
-          self.m.tryserver.gerrit_change.project,
-          '--gerrit_branch',
-          self.m.tryserver.gerrit_change_target_ref,
-          '--gerrit_fetch',
-      ]
-
-    if run_all:
-      presubmit_args.extend([
-        '--all', '--no_diffs',
-        '--verbose'
-        ])
-
+    presubmit_args = [
+      '--issue', self.m.tryserver.gerrit_change.change,
+      '--patchset', self.m.tryserver.gerrit_change.patchset,
+      '--gerrit_url', 'https://%s' % self.m.tryserver.gerrit_change.host,
+      '--gerrit_project', self.m.tryserver.gerrit_change.project,
+      '--gerrit_branch', self.m.tryserver.gerrit_change_target_ref,
+      '--gerrit_fetch',
+    ]
     if self.m.cq.active and self.m.cq.run_mode == self.m.cq.DRY_RUN:
       presubmit_args.append('--dry_run')
 
-    additionalArgs = ['--root', abs_root,'--commit']
-
-
-    if not run_all:
-      additionalArgs.extend([
-        '--verbose', '--verbose',
-      ])
-
-    additionalArgs.extend([
+    presubmit_args.extend([
+      '--root', abs_root,
+      '--commit',
+      '--verbose', '--verbose',
       '--skip_canned', 'CheckTreeIsOpen',
       '--upstream', upstream,  # '' if not in bot_update mode.
     ])
-
-    presubmit_args.extend(additionalArgs)
 
     if skip_owners:
       presubmit_args.extend([
@@ -194,10 +180,12 @@ class PresubmitApi(recipe_api.RecipeApi):
     if raw_result.summary_markdown == '':
       raw_result.status = common_pb2.INFRA_FAILURE
       raw_result.summary_markdown = (
-          'Something unexpected occurred'
-          ' while running presubmit checks.'
-          ' Please [file a bug](https://issues.chromium.org'
-          '/issues/new?component=1456211)')
+        'Something unexpected occurred'
+        ' while running presubmit checks.'
+        ' Please [file a bug](https://bugs.chromium.org'
+        '/p/chromium/issues/entry?components='
+        'Infra%3EClient%3EChrome&status=Untriaged)'
+      )
     return raw_result
 
 

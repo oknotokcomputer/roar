@@ -12,7 +12,6 @@
 #include <sys/mman.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -28,28 +27,21 @@
 #include "libminijail-private.h"
 #include "libminijail.h"
 #include "scoped_minijail.h"
-#include "test_util.h"
 #include "unittest_util.h"
 #include "util.h"
 
 namespace {
 
 #if defined(__ANDROID__)
-#define ROOT_PREFIX "/system"
+# define ROOT_PREFIX "/system"
 #else
-#define ROOT_PREFIX ""
+# define ROOT_PREFIX ""
 #endif
 
 constexpr char kShellPath[] = ROOT_PREFIX "/bin/sh";
 constexpr char kCatPath[] = ROOT_PREFIX "/bin/cat";
 constexpr char kPreloadPath[] = "./libminijailpreload.so";
 constexpr size_t kBufferSize = 128;
-constexpr bool kCompiledWithCoverage =
-#if defined(CROS_CODE_COVERAGE_ENABLED)
-    true;
-#else
-    false;
-#endif
 
 std::set<pid_t> GetProcessSubtreePids(pid_t root_pid) {
   std::set<pid_t> pids{root_pid};
@@ -97,7 +89,8 @@ std::set<pid_t> GetProcessSubtreePids(pid_t root_pid) {
 }
 
 std::map<std::string, std::string> GetNamespaces(
-    pid_t pid, const std::vector<std::string>& namespace_names) {
+    pid_t pid,
+    const std::vector<std::string>& namespace_names) {
   std::map<std::string, std::string> namespaces;
   char buf[kBufferSize];
   for (const auto& namespace_name : namespace_names) {
@@ -110,10 +103,10 @@ std::map<std::string, std::string> GetNamespaces(
   return namespaces;
 }
 
-void set_preload_path(minijail* j) {
+void set_preload_path(minijail *j) {
   // We need to get the absolute path because entering a new mntns will
   // implicitly chdir(/) for us.
-  char* preload_path = realpath(kPreloadPath, nullptr);
+  char *preload_path = realpath(kPreloadPath, nullptr);
   ASSERT_NE(preload_path, nullptr);
   minijail_set_preload_path(j, preload_path);
   free(preload_path);
@@ -131,7 +124,7 @@ TEST(silence, silence_unused) {
 TEST(consumebytes, zero) {
   char buf[1024];
   size_t len = sizeof(buf);
-  char* pos = &buf[0];
+  char *pos = &buf[0];
   EXPECT_NE(nullptr, consumebytes(0, &pos, &len));
   EXPECT_EQ(&buf[0], pos);
   EXPECT_EQ(sizeof(buf), len);
@@ -140,9 +133,9 @@ TEST(consumebytes, zero) {
 TEST(consumebytes, exact) {
   char buf[1024];
   size_t len = sizeof(buf);
-  char* pos = &buf[0];
+  char *pos = &buf[0];
   /* One past the end since it consumes the whole buffer. */
-  char* end = &buf[sizeof(buf)];
+  char *end = &buf[sizeof(buf)];
   EXPECT_NE(nullptr, consumebytes(len, &pos, &len));
   EXPECT_EQ((size_t)0, len);
   EXPECT_EQ(end, pos);
@@ -151,9 +144,9 @@ TEST(consumebytes, exact) {
 TEST(consumebytes, half) {
   char buf[1024];
   size_t len = sizeof(buf);
-  char* pos = &buf[0];
+  char *pos = &buf[0];
   /* One past the end since it consumes the whole buffer. */
-  char* end = &buf[sizeof(buf) / 2];
+  char *end = &buf[sizeof(buf) / 2];
   EXPECT_NE(nullptr, consumebytes(len / 2, &pos, &len));
   EXPECT_EQ(sizeof(buf) / 2, len);
   EXPECT_EQ(end, pos);
@@ -162,7 +155,7 @@ TEST(consumebytes, half) {
 TEST(consumebytes, toolong) {
   char buf[1024];
   size_t len = sizeof(buf);
-  char* pos = &buf[0];
+  char *pos = &buf[0];
   /* One past the end since it consumes the whole buffer. */
   EXPECT_EQ(nullptr, consumebytes(len + 1, &pos, &len));
   EXPECT_EQ(sizeof(buf), len);
@@ -172,7 +165,7 @@ TEST(consumebytes, toolong) {
 TEST(consumestr, zero) {
   char buf[1024];
   size_t len = 0;
-  char* pos = &buf[0];
+  char *pos = &buf[0];
   memset(buf, 0xff, sizeof(buf));
   EXPECT_EQ(nullptr, consumestr(&pos, &len));
   EXPECT_EQ((size_t)0, len);
@@ -182,7 +175,7 @@ TEST(consumestr, zero) {
 TEST(consumestr, nonul) {
   char buf[1024];
   size_t len = sizeof(buf);
-  char* pos = &buf[0];
+  char *pos = &buf[0];
   memset(buf, 0xff, sizeof(buf));
   EXPECT_EQ(nullptr, consumestr(&pos, &len));
   EXPECT_EQ(sizeof(buf), len);
@@ -192,10 +185,10 @@ TEST(consumestr, nonul) {
 TEST(consumestr, full) {
   char buf[1024];
   size_t len = sizeof(buf);
-  char* pos = &buf[0];
+  char *pos = &buf[0];
   memset(buf, 0xff, sizeof(buf));
-  buf[sizeof(buf) - 1] = '\0';
-  EXPECT_EQ((void*)buf, consumestr(&pos, &len));
+  buf[sizeof(buf)-1] = '\0';
+  EXPECT_EQ((void *)buf, consumestr(&pos, &len));
   EXPECT_EQ((size_t)0, len);
   EXPECT_EQ(&buf[sizeof(buf)], pos);
 }
@@ -203,9 +196,9 @@ TEST(consumestr, full) {
 TEST(consumestr, trailing_nul) {
   char buf[1024];
   size_t len = sizeof(buf) - 1;
-  char* pos = &buf[0];
+  char *pos = &buf[0];
   memset(buf, 0xff, sizeof(buf));
-  buf[sizeof(buf) - 1] = '\0';
+  buf[sizeof(buf)-1] = '\0';
   EXPECT_EQ(nullptr, consumestr(&pos, &len));
   EXPECT_EQ(sizeof(buf) - 1, len);
   EXPECT_EQ(&buf[0], pos);
@@ -224,8 +217,8 @@ class MarshalTest : public ::testing::Test {
   }
 
   char buf_[4096];
-  struct minijail* m_;
-  struct minijail* j_;
+  struct minijail *m_;
+  struct minijail *j_;
   size_t size_;
 };
 
@@ -268,7 +261,6 @@ TEST(KillTest, running_process) {
 TEST(KillTest, process_already_awaited) {
   const ScopedMinijail j(minijail_new());
   char* const argv[] = {"sh", "-c", "sleep 1; exit 42", nullptr};
-  set_preload_path(j.get());
   EXPECT_EQ(minijail_run(j.get(), kShellPath, argv), 0);
   EXPECT_EQ(minijail_wait(j.get()), 42);
   EXPECT_EQ(minijail_kill(j.get()), -ESRCH);
@@ -278,7 +270,6 @@ TEST(KillTest, process_already_finished_but_not_awaited) {
   int fds[2];
   const ScopedMinijail j(minijail_new());
   char* const argv[] = {"sh", "-c", "exit 42", nullptr};
-  set_preload_path(j.get());
   ASSERT_EQ(pipe(fds), 0);
   EXPECT_EQ(minijail_run(j.get(), kShellPath, argv), 0);
   ASSERT_EQ(close(fds[1]), 0);
@@ -297,7 +288,6 @@ TEST(KillTest, process_not_started) {
 TEST(WaitTest, return_zero) {
   const ScopedMinijail j(minijail_new());
   char* const argv[] = {"sh", "-c", "exit 0", nullptr};
-  set_preload_path(j.get());
   EXPECT_EQ(minijail_run(j.get(), kShellPath, argv), 0);
   EXPECT_EQ(minijail_wait(j.get()), 0);
 }
@@ -305,7 +295,6 @@ TEST(WaitTest, return_zero) {
 TEST(WaitTest, return_max) {
   const ScopedMinijail j(minijail_new());
   char* const argv[] = {"sh", "-c", "exit 255", nullptr};
-  set_preload_path(j.get());
   EXPECT_EQ(minijail_run(j.get(), kShellPath, argv), 0);
   EXPECT_EQ(minijail_wait(j.get()), 255);
 }
@@ -313,7 +302,6 @@ TEST(WaitTest, return_max) {
 TEST(WaitTest, return_modulo) {
   const ScopedMinijail j(minijail_new());
   char* const argv[] = {"sh", "-c", "exit 256", nullptr};
-  set_preload_path(j.get());
   EXPECT_EQ(minijail_run(j.get(), kShellPath, argv), 0);
   EXPECT_EQ(minijail_wait(j.get()), 0);
 }
@@ -321,15 +309,13 @@ TEST(WaitTest, return_modulo) {
 TEST(WaitTest, killed_by_sigkill) {
   const ScopedMinijail j(minijail_new());
   char* const argv[] = {"sh", "-c", "kill -KILL $$; sleep 1000", nullptr};
-  set_preload_path(j.get());
   EXPECT_EQ(minijail_run(j.get(), kShellPath, argv), 0);
-  EXPECT_EQ(minijail_wait(j.get()), MINIJAIL_ERR_SIG_BASE + SIGKILL);
+  EXPECT_EQ(minijail_wait(j.get()), MINIJAIL_ERR_SIG_BASE  + SIGKILL);
 }
 
 TEST(WaitTest, killed_by_sigsys) {
   const ScopedMinijail j(minijail_new());
   char* const argv[] = {"sh", "-c", "kill -SYS $$; sleep 1000", nullptr};
-  set_preload_path(j.get());
   EXPECT_EQ(minijail_run(j.get(), kShellPath, argv), 0);
   EXPECT_EQ(minijail_wait(j.get()), MINIJAIL_ERR_JAIL);
 }
@@ -356,7 +342,6 @@ TEST(WaitTest, no_process) {
 TEST(WaitTest, can_wait_only_once) {
   const ScopedMinijail j(minijail_new());
   char* const argv[] = {"sh", "-c", "exit 0", nullptr};
-  set_preload_path(j.get());
   EXPECT_EQ(minijail_run(j.get(), kShellPath, argv), 0);
   EXPECT_EQ(minijail_wait(j.get()), 0);
   EXPECT_EQ(minijail_wait(j.get()), -ECHILD);
@@ -374,20 +359,13 @@ TEST(Test, minijail_preserve_fd_no_leak) {
     )";
   char* const argv[] = {"sh", "-c", script, nullptr};
 
-  const int high_fd = 99999;
-  const int npipes = 4;
+  const int npipes = 3;
   int fds[npipes][2];
 
   // Create pipes.
   for (int i = 0; i < npipes; ++i) {
     ASSERT_EQ(pipe(fds[i]), 0);
   }
-
-  // (b/308042314) Move a pipe to > 1024 to check for a crash.
-  ASSERT_FALSE(minijail_fd_is_open(high_fd)) << "high_fd is already in use";
-  ASSERT_EQ(dup2(fds[3][1], high_fd), high_fd);
-  EXPECT_EQ(close(fds[3][1]), 0);
-  fds[3][1] = high_fd;
 
   // All pipes are output pipes except for the first one which is used as
   // input pipe.
@@ -468,9 +446,7 @@ TEST(Test, close_original_pipes_after_dup2) {
       read line2;
       echo "$line1$line2 and Goodbye" >&%d;
       exit 42;
-    )",
-                     to_wait[1]),
-            0);
+    )", to_wait[1]), 0);
   char* const argv[] = {"sh", "-c", program, nullptr};
 
   int in = -1;
@@ -551,7 +527,7 @@ TEST(Test, minijail_no_clobber_pipe_fd) {
   // Generate a lot of mappings to try to clobber any file descriptors generated
   // by libminijail.
   for (int offset = 0; offset < npipes * 3; offset += npipes) {
-    for (int i = 0; i < npipes; ++i) {
+    for (int i = 0 ; i < npipes; ++i) {
       const int fd = fds[i][1];
       minijail_preserve_fd(j.get(), fd, i + offset);
     }
@@ -613,22 +589,20 @@ TEST(Test, minijail_no_clobber_pipe_fd) {
 TEST(Test, minijail_run_env_pid_pipes) {
   // TODO(crbug.com/895875): The preload library interferes with ASan since they
   // both need to use LD_PRELOAD.
-  // TODO(b/238743201): This test consistently breaks with code coverage
-  // enabled. That should be fixed.
-  if (kCompiledWithCoverage || running_with_asan())
+  if (running_with_asan())
     GTEST_SKIP();
 
   ScopedMinijail j(minijail_new());
   set_preload_path(j.get());
 
-  char* argv[4];
+  char *argv[4];
   argv[0] = const_cast<char*>(kCatPath);
   argv[1] = NULL;
 
   pid_t pid;
   int child_stdin, child_stdout;
-  int mj_run_ret = minijail_run_pid_pipes(j.get(), argv[0], argv, &pid,
-                                          &child_stdin, &child_stdout, NULL);
+  int mj_run_ret = minijail_run_pid_pipes(
+      j.get(), argv[0], argv, &pid, &child_stdin, &child_stdout, NULL);
   EXPECT_EQ(mj_run_ret, 0);
 
   char teststr[] = "test\n";
@@ -652,7 +626,7 @@ TEST(Test, minijail_run_env_pid_pipes) {
   argv[2] = "echo \"${TEST_PARENT+set}|${TEST_VAR}\" >&2";
   argv[3] = nullptr;
 
-  char* envp[2];
+  char *envp[2];
   envp[0] = "TEST_VAR=test";
   envp[1] = NULL;
 
@@ -678,21 +652,19 @@ TEST(Test, minijail_run_env_pid_pipes) {
 TEST(Test, minijail_run_fd_env_pid_pipes) {
   // TODO(crbug.com/895875): The preload library interferes with ASan since they
   // both need to use LD_PRELOAD.
-  // TODO(b/238743201): This test consistently breaks with code coverage
-  // enabled. That should be fixed.
-  if (kCompiledWithCoverage || running_with_asan())
+  if (running_with_asan())
     GTEST_SKIP();
 
   ScopedMinijail j(minijail_new());
   set_preload_path(j.get());
 
-  char* argv[4];
+  char *argv[4];
   argv[0] = const_cast<char*>(kShellPath);
   argv[1] = "-c";
   argv[2] = "echo \"${TEST_PARENT+set}|${TEST_VAR}\" >&2\n";
   argv[3] = nullptr;
 
-  char* envp[2];
+  char *envp[2];
   envp[0] = "TEST_VAR=test";
   envp[1] = nullptr;
 
@@ -730,23 +702,19 @@ TEST(Test, minijail_run_fd_env_pid_pipes) {
 TEST(Test, minijail_run_env_pid_pipes_with_local_preload) {
   // TODO(crbug.com/895875): The preload library interferes with ASan since they
   // both need to use LD_PRELOAD.
-  // TODO(b/238743201): This test consistently breaks with code coverage
-  // enabled. That should be fixed.
-  if (kCompiledWithCoverage || running_with_asan())
+  if (running_with_asan())
     GTEST_SKIP();
 
   ScopedMinijail j(minijail_new());
-  // Use the preload library from this test build.
-  set_preload_path(j.get());
 
-  char* argv[4];
+  char *argv[4];
   argv[0] = const_cast<char*>(kCatPath);
   argv[1] = NULL;
 
   pid_t pid;
   int child_stdin, child_stdout;
-  int mj_run_ret = minijail_run_pid_pipes(j.get(), argv[0], argv, &pid,
-                                          &child_stdin, &child_stdout, NULL);
+  int mj_run_ret = minijail_run_pid_pipes(
+      j.get(), argv[0], argv, &pid, &child_stdin, &child_stdout, NULL);
   EXPECT_EQ(mj_run_ret, 0);
 
   char teststr[] = "test\n";
@@ -770,12 +738,15 @@ TEST(Test, minijail_run_env_pid_pipes_with_local_preload) {
   argv[2] = "echo \"${TEST_PARENT+set}|${TEST_VAR}\" >&2";
   argv[3] = nullptr;
 
-  char* envp[2];
+  char *envp[2];
   envp[0] = "TEST_VAR=test";
   envp[1] = NULL;
 
   // Set a canary env var in the parent that should not be present in the child.
   ASSERT_EQ(setenv("TEST_PARENT", "test", 1 /*overwrite*/), 0);
+
+  // Use the preload library from this test build.
+  set_preload_path(j.get());
 
   int child_stderr;
   mj_run_ret =
@@ -806,7 +777,7 @@ TEST(Test, test_minijail_no_clobber_fds) {
     minijail_preserve_fd(j.get(), dev_null, i);
   }
 
-  char* argv[4];
+  char *argv[4];
   argv[0] = const_cast<char*>(kShellPath);
   argv[1] = "-c";
   argv[2] = "echo Hello; read line1; echo \"${line1}\" >&2";
@@ -851,21 +822,23 @@ TEST(Test, test_minijail_no_fd_leaks) {
   char buf[kBufferSize];
   char script[kBufferSize];
   int status;
-  char* argv[4];
+  char *argv[4];
 
   int dev_null = open("/dev/null", O_RDONLY);
   ASSERT_NE(dev_null, -1);
-  snprintf(script, sizeof(script),
-           "[ -e /proc/self/fd/%d ] && echo yes || echo no", dev_null);
+  snprintf(script,
+           sizeof(script),
+           "[ -e /proc/self/fd/%d ] && echo yes || echo no",
+           dev_null);
 
-  struct minijail* j = minijail_new();
+  struct minijail *j = minijail_new();
 
   argv[0] = const_cast<char*>(kShellPath);
   argv[1] = "-c";
   argv[2] = script;
   argv[3] = NULL;
-  mj_run_ret = minijail_run_pid_pipes_no_preload(j, argv[0], argv, &pid, NULL,
-                                                 &child_stdout, NULL);
+  mj_run_ret = minijail_run_pid_pipes_no_preload(
+      j, argv[0], argv, &pid, NULL, &child_stdout, NULL);
   EXPECT_EQ(mj_run_ret, 0);
 
   read_ret = read(child_stdout, buf, sizeof(buf));
@@ -878,8 +851,8 @@ TEST(Test, test_minijail_no_fd_leaks) {
   EXPECT_EQ(WEXITSTATUS(status), 0);
 
   minijail_close_open_fds(j);
-  mj_run_ret = minijail_run_pid_pipes_no_preload(j, argv[0], argv, &pid, NULL,
-                                                 &child_stdout, NULL);
+  mj_run_ret = minijail_run_pid_pipes_no_preload(
+      j, argv[0], argv, &pid, NULL, &child_stdout, NULL);
   EXPECT_EQ(mj_run_ret, 0);
 
   read_ret = read(child_stdout, buf, sizeof(buf));
@@ -930,13 +903,14 @@ TEST(Test, test_minijail_callback) {
   pid_t pid;
   int mj_run_ret;
   int status;
-  char* argv[2];
+  char *argv[2];
   int exit_code = 42;
 
-  struct minijail* j = minijail_new();
+  struct minijail *j = minijail_new();
 
-  status = minijail_add_hook(j, &early_exit, reinterpret_cast<void*>(exit_code),
-                             MINIJAIL_HOOK_EVENT_PRE_DROP_CAPS);
+  status =
+      minijail_add_hook(j, &early_exit, reinterpret_cast<void *>(exit_code),
+                        MINIJAIL_HOOK_EVENT_PRE_DROP_CAPS);
   EXPECT_EQ(status, 0);
 
   argv[0] = const_cast<char*>(kCatPath);
@@ -954,14 +928,14 @@ TEST(Test, test_minijail_callback) {
 TEST(Test, test_minijail_preserve_fd) {
   int mj_run_ret;
   int status;
-  char* argv[2];
+  char *argv[2];
   char teststr[] = "test\n";
   size_t teststr_len = strlen(teststr);
   int read_pipe[2];
   int write_pipe[2];
   char buf[1024];
 
-  struct minijail* j = minijail_new();
+  struct minijail *j = minijail_new();
 
   status = pipe(read_pipe);
   ASSERT_EQ(status, 0);
@@ -997,7 +971,7 @@ TEST(Test, test_minijail_preserve_fd) {
 }
 
 TEST(Test, test_minijail_reset_signal_mask) {
-  struct minijail* j = minijail_new();
+  struct minijail *j = minijail_new();
 
   sigset_t original_signal_mask;
   {
@@ -1030,7 +1004,7 @@ TEST(Test, test_minijail_reset_signal_mask) {
 }
 
 TEST(Test, test_minijail_reset_signal_handlers) {
-  struct minijail* j = minijail_new();
+  struct minijail *j = minijail_new();
 
   ASSERT_EQ(SIG_DFL, signal(SIGUSR1, SIG_DFL));
   ASSERT_EQ(SIG_DFL, signal(SIGUSR1, SIG_IGN));
@@ -1132,7 +1106,9 @@ namespace {
 // clone for more information about failure modes with the CLONE_NEWUSER flag).
 class NamespaceTest : public ::testing::Test {
  protected:
-  static void SetUpTestCase() { userns_supported_ = UsernsSupported(); }
+  static void SetUpTestCase() {
+    userns_supported_ = UsernsSupported();
+  }
 
   // Whether userns is supported.
   static bool userns_supported_;
@@ -1142,19 +1118,8 @@ class NamespaceTest : public ::testing::Test {
     if (pid == -1)
       pdie("could not fork");
 
-    // Check that unshare(CLONE_NEWUSER) works.
     if (pid == 0)
       _exit(unshare(CLONE_NEWUSER) == 0 ? 0 : 1);
-
-    // Check that /proc/[pid]/uid_map can be opened. When pivot_root is used to
-    // enter CrOS SDK chroot, unshare() works, but libminijail fails to open
-    // /proc/[pid]/uid_map because its owner uid and gid are set to 0.
-    char* filename = nullptr;
-    if (asprintf(&filename, "/proc/%d/uid_map", pid) == -1)
-      die("asprintf failed");
-    ScopedStr filename_deleter(filename);
-    bool fd_is_valid =
-        ScopedFD(open(filename, O_WRONLY | O_CLOEXEC)).get() != -1;
 
     int status;
     if (waitpid(pid, &status, 0) < 0)
@@ -1163,7 +1128,7 @@ class NamespaceTest : public ::testing::Test {
     if (!WIFEXITED(status))
       die("child did not exit properly: %#x", status);
 
-    bool ret = WEXITSTATUS(status) == 0 && fd_is_valid;
+    bool ret = WEXITSTATUS(status) == 0;
     if (!ret)
       warn("Skipping userns related tests");
     return ret;
@@ -1177,7 +1142,7 @@ bool NamespaceTest::userns_supported_;
 TEST_F(NamespaceTest, test_tmpfs_userns) {
   int mj_run_ret;
   int status;
-  char* argv[4];
+  char *argv[4];
   char uidmap[kBufferSize], gidmap[kBufferSize];
   constexpr uid_t kTargetUid = 1000;  // Any non-zero value will do.
   constexpr gid_t kTargetGid = 1000;
@@ -1185,7 +1150,7 @@ TEST_F(NamespaceTest, test_tmpfs_userns) {
   if (!userns_supported_)
     GTEST_SKIP();
 
-  struct minijail* j = minijail_new();
+  struct minijail *j = minijail_new();
 
   minijail_namespace_pids(j);
   minijail_namespace_vfs(j);
@@ -1266,8 +1231,9 @@ TEST_F(NamespaceTest, test_namespaces) {
       char* const argv[] = {const_cast<char*>(kCatPath), nullptr};
       pid_t container_pid;
       int child_stdin, child_stdout;
-      int mj_run_ret = run_function(j.get(), argv[0], argv, &container_pid,
-                                    &child_stdin, &child_stdout, nullptr);
+      int mj_run_ret =
+          run_function(j.get(), argv[0], argv,
+                       &container_pid, &child_stdin, &child_stdout, nullptr);
       EXPECT_EQ(mj_run_ret, 0);
 
       // Send some data to stdin and read it back to ensure that the child
@@ -1308,7 +1274,7 @@ TEST_F(NamespaceTest, test_enter_ns) {
   // We first create a child in a new userns so we have privs to run more tests.
   // We can't combine the steps as the kernel disallows many resource sharing
   // from outside the userns.
-  struct minijail* j = minijail_new();
+  struct minijail *j = minijail_new();
 
   minijail_namespace_vfs(j);
   minijail_namespace_pids(j);
@@ -1347,7 +1313,7 @@ TEST_F(NamespaceTest, test_enter_ns) {
       minijail_namespace_enter_net(j, "/proc/self/ns/net");
       minijail_namespace_enter_vfs(j, "/proc/self/ns/mnt");
 
-      char* argv[] = {"/bin/true", nullptr};
+      char *argv[] = {"/bin/true", nullptr};
       EXPECT_EQ(0, minijail_run(j, argv[0], argv));
       EXPECT_EQ(0, minijail_wait(j));
       minijail_destroy(j);
@@ -1372,7 +1338,7 @@ TEST_F(NamespaceTest, test_remount_all_private) {
   ssize_t read_ret;
   char buf[kBufferSize];
   int status;
-  char* argv[4];
+  char *argv[4];
   char uidmap[kBufferSize], gidmap[kBufferSize];
   constexpr uid_t kTargetUid = 1000;  // Any non-zero value will do.
   constexpr gid_t kTargetGid = 1000;
@@ -1380,7 +1346,7 @@ TEST_F(NamespaceTest, test_remount_all_private) {
   if (!userns_supported_)
     GTEST_SKIP();
 
-  struct minijail* j = minijail_new();
+  struct minijail *j = minijail_new();
 
   minijail_namespace_pids(j);
   minijail_namespace_vfs(j);
@@ -1401,12 +1367,11 @@ TEST_F(NamespaceTest, test_remount_all_private) {
 
   argv[0] = const_cast<char*>(kShellPath);
   argv[1] = "-c";
-  argv[2] =
-      "grep -E 'shared:|master:|propagate_from:|unbindable:' "
-      "/proc/self/mountinfo";
+  argv[2] = "grep -E 'shared:|master:|propagate_from:|unbindable:' "
+            "/proc/self/mountinfo";
   argv[3] = NULL;
-  mj_run_ret = minijail_run_pid_pipes_no_preload(j, argv[0], argv, &pid, NULL,
-                                                 &child_stdout, NULL);
+  mj_run_ret = minijail_run_pid_pipes_no_preload(
+      j, argv[0], argv, &pid, NULL, &child_stdout, NULL);
   EXPECT_EQ(mj_run_ret, 0);
 
   // There should be no output because all mounts should be remounted as
@@ -1431,7 +1396,7 @@ TEST_F(NamespaceTest, test_fail_to_remount_one_private) {
   if (!userns_supported_)
     GTEST_SKIP();
 
-  struct minijail* j = minijail_new();
+  struct minijail *j = minijail_new();
 
   minijail_namespace_pids(j);
   minijail_namespace_vfs(j);
@@ -1452,7 +1417,7 @@ TEST_F(NamespaceTest, test_fail_to_remount_one_private) {
   minijail_remount_mode(j, MS_SHARED);
   minijail_add_remount(j, "/proc", MS_PRIVATE);
 
-  char* argv[] = {"/bin/true", nullptr};
+  char *argv[] = {"/bin/true", nullptr};
   minijail_run(j, argv[0], argv);
 
   status = minijail_wait(j);
@@ -1468,7 +1433,7 @@ TEST_F(NamespaceTest, test_remount_one_shared) {
   ssize_t read_ret;
   char buf[kBufferSize * 4];
   int status;
-  char* argv[4];
+  char *argv[4];
   char uidmap[kBufferSize], gidmap[kBufferSize];
   constexpr uid_t kTargetUid = 1000;  // Any non-zero value will do.
   constexpr gid_t kTargetGid = 1000;
@@ -1476,7 +1441,7 @@ TEST_F(NamespaceTest, test_remount_one_shared) {
   if (!userns_supported_)
     GTEST_SKIP();
 
-  struct minijail* j = minijail_new();
+  struct minijail *j = minijail_new();
 
   minijail_namespace_pids(j);
   minijail_namespace_vfs(j);
@@ -1501,8 +1466,8 @@ TEST_F(NamespaceTest, test_remount_one_shared) {
   argv[1] = "-c";
   argv[2] = "grep -E 'shared:' /proc/self/mountinfo";
   argv[3] = NULL;
-  mj_run_ret = minijail_run_pid_pipes_no_preload(j, argv[0], argv, &pid, NULL,
-                                                 &child_stdout, NULL);
+  mj_run_ret = minijail_run_pid_pipes_no_preload(
+      j, argv[0], argv, &pid, NULL, &child_stdout, NULL);
   EXPECT_EQ(mj_run_ret, 0);
 
   // There should be no output because all mounts should be remounted as
@@ -1528,7 +1493,7 @@ TEST_F(NamespaceTest, test_remount_ro_using_mount) {
   if (!userns_supported_)
     GTEST_SKIP();
 
-  struct minijail* j = minijail_new();
+  struct minijail *j = minijail_new();
 
   minijail_namespace_pids(j);
   minijail_namespace_vfs(j);
@@ -1548,7 +1513,7 @@ TEST_F(NamespaceTest, test_remount_ro_using_mount) {
   // Perform a RO remount using minijail_mount().
   minijail_mount(j, "none", "/", "none", MS_REMOUNT | MS_BIND | MS_RDONLY);
 
-  char* argv[] = {"/bin/true", nullptr};
+  char *argv[] = {"/bin/true", nullptr};
   minijail_run_no_preload(j, argv[0], argv);
 
   status = minijail_wait(j);
@@ -1575,18 +1540,18 @@ class LandlockTest : public NamespaceTest {
 
   static bool LandlockSupported() {
     // Check the Landlock version w/o creating a ruleset file descriptor.
-    const int landlock_version =
-        landlock_create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION);
+    int landlock_version = landlock_create_ruleset(
+      NULL, 0, LANDLOCK_CREATE_RULESET_VERSION);
     if (landlock_version <= 0) {
       const int err = errno;
       warn("Skipping Landlock tests");
       switch (err) {
-        case ENOSYS:
-          warn("Landlock not supported by the current kernel.");
-          break;
-        case EOPNOTSUPP:
-          warn("Landlock is currently disabled.");
-          break;
+      case ENOSYS:
+        warn("Landlock not supported by the current kernel.");
+        break;
+      case EOPNOTSUPP:
+        warn("Landlock is currently disabled.");
+        break;
       }
       return false;
     }
@@ -1594,7 +1559,7 @@ class LandlockTest : public NamespaceTest {
   }
 
   // Sets up a minijail to make Landlock syscalls and child processes.
-  void SetupLandlockTestingNamespaces(struct minijail* j) {
+  void SetupLandlockTestingNamespaces(struct minijail *j) {
     minijail_namespace_pids(j);
     minijail_namespace_user(j);
   }
@@ -1619,7 +1584,7 @@ constexpr char kTestSymlinkScript[] = R"(
 TEST_F(LandlockTest, test_rule_rx_allow) {
   int mj_run_ret;
   int status;
-  char* argv[3];
+  char *argv[3];
   if (!run_landlock_tests_)
     GTEST_SKIP();
   ScopedMinijail j(minijail_new());
@@ -1642,7 +1607,7 @@ TEST_F(LandlockTest, test_rule_rx_allow) {
 TEST_F(LandlockTest, test_rule_rx_deny) {
   int mj_run_ret;
   int status;
-  char* argv[3];
+  char *argv[3];
   if (!run_landlock_tests_)
     GTEST_SKIP();
   ScopedMinijail j(minijail_new());
@@ -1663,7 +1628,7 @@ TEST_F(LandlockTest, test_rule_rx_deny) {
 TEST_F(LandlockTest, test_rule_ro_allow) {
   int mj_run_ret;
   int status;
-  char* argv[3];
+  char *argv[3];
   if (!run_landlock_tests_)
     GTEST_SKIP();
   ScopedMinijail j(minijail_new());
@@ -1688,7 +1653,7 @@ TEST_F(LandlockTest, test_rule_ro_allow) {
 TEST_F(LandlockTest, test_rule_ro_deny) {
   int mj_run_ret;
   int status;
-  char* argv[3];
+  char *argv[3];
   if (!run_landlock_tests_)
     GTEST_SKIP();
   ScopedMinijail j(minijail_new());
@@ -1712,7 +1677,7 @@ TEST_F(LandlockTest, test_rule_ro_deny) {
 TEST_F(LandlockTest, test_rule_rw_allow) {
   int mj_run_ret;
   int status;
-  char* argv[4];
+  char *argv[4];
   if (!run_landlock_tests_)
     GTEST_SKIP();
   ScopedMinijail j(minijail_new());
@@ -1738,7 +1703,7 @@ TEST_F(LandlockTest, test_rule_rw_allow) {
 TEST_F(LandlockTest, test_rule_rw_deny) {
   int mj_run_ret;
   int status;
-  char* argv[4];
+  char *argv[4];
   if (!run_landlock_tests_)
     GTEST_SKIP();
   ScopedMinijail j(minijail_new());
@@ -1763,7 +1728,7 @@ TEST_F(LandlockTest, test_rule_rw_deny) {
 TEST_F(LandlockTest, test_deny_rule_with_close_open_fds) {
   int mj_run_ret;
   int status;
-  char* argv[3];
+  char *argv[3];
   if (!run_landlock_tests_)
     GTEST_SKIP();
   ScopedMinijail j(minijail_new());
@@ -1787,7 +1752,7 @@ TEST_F(LandlockTest, test_deny_rule_with_close_open_fds) {
 TEST_F(LandlockTest, test_fs_rules_disabled) {
   int mj_run_ret;
   int status;
-  char* argv[4];
+  char *argv[4];
   if (!run_landlock_tests_)
     GTEST_SKIP();
   ScopedMinijail j(minijail_new());
@@ -1808,7 +1773,7 @@ TEST_F(LandlockTest, test_fs_rules_disabled) {
 }
 
 TEST_F(LandlockTest, test_fs_rules_availability) {
-  char* argv[4];
+  char *argv[4];
   int status;
   bool landlock_available;
   // We always run regardless of LandlockSupported() because we would like to
@@ -1838,20 +1803,6 @@ TEST_F(LandlockTest, test_fs_rules_availability) {
   }
 }
 
-TEST_F(LandlockTest, test_setup_fs_rules_fd) {
-  // Test that the Landlock ruleset FD is set up, because this is important
-  // behavior for API users calling minijail_enter() directly.
-  if (!run_landlock_tests_)
-    GTEST_SKIP();
-  ScopedMinijail j(minijail_new());
-  SetupLandlockTestingNamespaces(j.get());
-  EXPECT_FALSE(minijail_is_fs_restriction_ruleset_initialized(j.get()));
-
-  minijail_add_fs_restriction_rx(j.get(), kBinPath);
-
-  EXPECT_TRUE(minijail_is_fs_restriction_ruleset_initialized(j.get()));
-}
-
 TEST_F(LandlockTest, test_rule_allow_symlinks_advanced_rw) {
   int mj_run_ret;
   int status;
@@ -1866,7 +1817,7 @@ TEST_F(LandlockTest, test_rule_allow_symlinks_advanced_rw) {
   minijail_add_fs_restriction_advanced_rw(j.get(), kTmpPath);
 
   char* const argv[] = {"sh", "-c", const_cast<char*>(kTestSymlinkScript),
-                        nullptr};
+      nullptr};
 
   mj_run_ret = minijail_run_no_preload(j.get(), kShellPath, argv);
   EXPECT_EQ(mj_run_ret, 0);
@@ -1888,7 +1839,7 @@ TEST_F(LandlockTest, test_rule_deny_symlinks_basic_rw) {
   minijail_add_fs_restriction_rw(j.get(), kTmpPath);
 
   char* const argv[] = {"sh", "-c", const_cast<char*>(kTestSymlinkScript),
-                        nullptr};
+      nullptr};
 
   mj_run_ret = minijail_run_no_preload(j.get(), kShellPath, argv);
   EXPECT_EQ(mj_run_ret, 0);
@@ -1899,7 +1850,7 @@ TEST_F(LandlockTest, test_rule_deny_symlinks_basic_rw) {
 TEST_F(LandlockTest, test_rule_rx_cannot_write) {
   int mj_run_ret;
   int status;
-  char* argv[4];
+  char *argv[4];
   if (!run_landlock_tests_)
     GTEST_SKIP();
   ScopedMinijail j(minijail_new());
@@ -1924,7 +1875,7 @@ TEST_F(LandlockTest, test_rule_rx_cannot_write) {
 TEST_F(LandlockTest, test_rule_ro_cannot_wx) {
   int mj_run_ret;
   int status;
-  char* argv[4];
+  char *argv[4];
   if (!run_landlock_tests_)
     GTEST_SKIP();
   ScopedMinijail j(minijail_new());
@@ -1949,7 +1900,7 @@ TEST_F(LandlockTest, test_rule_ro_cannot_wx) {
 TEST_F(LandlockTest, test_rule_rw_cannot_exec) {
   int mj_run_ret;
   int status;
-  char* argv[4];
+  char *argv[4];
   if (!run_landlock_tests_)
     GTEST_SKIP();
   ScopedMinijail j(minijail_new());
@@ -1959,75 +1910,6 @@ TEST_F(LandlockTest, test_rule_rw_cannot_exec) {
   minijail_add_fs_restriction_rw(j.get(), kLibPath);
   minijail_add_fs_restriction_rw(j.get(), kLib64Path);
   minijail_add_fs_restriction_rw(j.get(), kTmpPath);
-
-  argv[0] = const_cast<char*>(kShellPath);
-  argv[1] = "-c";
-  argv[2] = "exec echo 'bar' > /tmp/baz";
-  argv[3] = NULL;
-
-  mj_run_ret = minijail_run_no_preload(j.get(), argv[0], argv);
-  EXPECT_EQ(mj_run_ret, 0);
-  status = minijail_wait(j.get());
-  EXPECT_NE(status, 0);
-}
-
-// Tests that LANDLOCK_ACCESS_FS_REFER is supported when the kernel supports
-// Landlock version ABI=2.
-TEST_F(LandlockTest, test_refer_supported) {
-  int mj_run_ret;
-  int status;
-  char* argv[4];
-  if (!run_landlock_tests_)
-    GTEST_SKIP();
-  const int landlock_version =
-      landlock_create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION);
-  if (landlock_version < LANDLOCK_ABI_FS_REFER_SUPPORTED) {
-    warn("Skipping LandlockTest test_refer_supported ABI=%i", landlock_version);
-    GTEST_SKIP();
-  }
-
-  ScopedMinijail j(minijail_new());
-  SetupLandlockTestingNamespaces(j.get());
-  minijail_add_fs_restriction_rx(j.get(), "/");
-  // If LANDLOCK_ACCESS_FS_REFER isn’t part of the access rights handled by
-  // minijail, none of the access rights in this call will be added.
-  minijail_add_fs_restriction_access_rights(
-      j.get(), "/tmp", ACCESS_FS_ROUGHLY_FULL_WRITE | LANDLOCK_ACCESS_FS_REFER);
-
-  argv[0] = const_cast<char*>(kShellPath);
-  argv[1] = "-c";
-  argv[2] = "exec echo 'bar' > /tmp/baz";
-  argv[3] = NULL;
-
-  mj_run_ret = minijail_run_no_preload(j.get(), argv[0], argv);
-  EXPECT_EQ(mj_run_ret, 0);
-  status = minijail_wait(j.get());
-  EXPECT_EQ(status, 0);
-}
-
-TEST_F(LandlockTest, test_refer_not_supported) {
-  int mj_run_ret;
-  int status;
-  char* argv[4];
-  if (!run_landlock_tests_)
-    GTEST_SKIP();
-  const int landlock_version =
-      landlock_create_ruleset(NULL, 0, LANDLOCK_CREATE_RULESET_VERSION);
-  if (landlock_version >= LANDLOCK_ABI_FS_REFER_SUPPORTED) {
-    warn("Skipping LandlockTest test_refer_not_supported ABI=%i",
-         landlock_version);
-    GTEST_SKIP();
-  }
-
-  ScopedMinijail j(minijail_new());
-  std::string link_name = std::tmpnam(NULL);
-  std::string link_cmd = "exec /bin/ln -s /var " + link_name;
-  SetupLandlockTestingNamespaces(j.get());
-  minijail_add_fs_restriction_rx(j.get(), "/");
-  // This call shouldn't succeed, since we're adding an access right
-  // that doesn't have kernel support.
-  minijail_add_fs_restriction_access_rights(
-      j.get(), "/tmp", ACCESS_FS_ROUGHLY_FULL_WRITE | LANDLOCK_ACCESS_FS_REFER);
 
   argv[0] = const_cast<char*>(kShellPath);
   argv[1] = "-c";
@@ -2082,29 +1964,4 @@ TEST(Test, default_no_new_session) {
 
 TEST(Test, create_new_session) {
   TestCreateSession(/*create_session=*/true);
-}
-
-TEST(Test, syscall_name_altsyscall) {
-  ScopedMinijail j(minijail_new());
-
-  // Use a placeholder since we don't need a valid table (yet).
-  minijail_use_alt_syscall(j.get(), "placeholder");
-
-  EXPECT_EQ(std::string(minijail_syscall_name(j.get(), 1)),
-            std::string(kAltSyscallNamePlaceholder));
-}
-
-TEST(Test, syscall_name) {
-  // With jail; Success.
-  ScopedMinijail j(minijail_new());
-  EXPECT_STREQ(minijail_syscall_name(j.get(), SYS_read), "read");
-
-  // Without jail; Success.
-  EXPECT_STREQ(minijail_syscall_name(nullptr, SYS_read), "read");
-
-  // With jail; Null.
-  EXPECT_EQ(minijail_syscall_name(j.get(), -1), nullptr);
-
-  // Without jail; Null.
-  EXPECT_EQ(minijail_syscall_name(nullptr, -1), nullptr);
 }

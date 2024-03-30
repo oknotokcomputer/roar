@@ -6,39 +6,10 @@
 setlocal
 
 set CIPD_BACKEND=https://chrome-infra-packages.appspot.com
-set VERSION_FILE=%~dp0cipd_client_version
-set CIPD_BINARY=%~dp0.cipd_client.exe
-set CIPD_PLATFORM=windows-amd64
-set PLATFORM_OVERRIDE_FILE=%~dp0.cipd_client_platform
+set VERSION_FILE="%~dp0cipd_client_version"
+set CIPD_BINARY="%~dp0.cipd_client.exe"
 
-:: Uncomment to recognize arm64 by default.
-:: if %PROCESSOR_ARCHITECTURE%==ARM64 (
-::   set CIPD_PLATFORM=windows-arm64
-:: )
-
-:: A value in .cipd_client_platform overrides the "guessed" platform.
-if exist "%PLATFORM_OVERRIDE_FILE%" (
-  for /F usebackq %%l in ("%PLATFORM_OVERRIDE_FILE%") do (
-    set CIPD_PLATFORM=%%l
-  )
-)
-
-:: Nuke the existing client if its platform doesn't match what we want now. We
-:: crudely search for a CIPD client package name in the .cipd_version JSON file.
-:: It has only "instance_id" as the other field (looking like a base64 string),
-:: so mismatches are very unlikely.
-set INSTALLED_VERSION_FILE=%~dp0.versions\.cipd_client.exe.cipd_version
-findstr /m "infra/tools/cipd/%CIPD_PLATFORM%" "%INSTALLED_VERSION_FILE%" 1>nul 2>nul
-if %ERRORLEVEL% neq 0 (
-  if exist "%INSTALLED_VERSION_FILE%" (
-    echo Detected CIPD client platform change to %CIPD_PLATFORM%. 1>&2
-    echo Deleting the existing client to trigger the bootstrap... 1>&2
-    del "%CIPD_BINARY%"
-    del "%INSTALLED_VERSION_FILE%"
-  )
-)
-
-if not exist "%CIPD_BINARY%" (
+if not exist %CIPD_BINARY% (
   call :CLEAN_BOOTSTRAP
   goto :EXEC_CIPD
 )
@@ -75,11 +46,10 @@ exit /b %EXPORT_ERRORLEVEL%
 :: and unzipping the depot_tools.zip distribution, we clear the Zone.Identifier
 :: alternate data stream. This is equivalent to clicking the "Unblock" button
 :: in the file's properties dialog.
-echo.>"%~dp0.cipd_impl.ps1:Zone.Identifier"
+echo.>%~dp0.cipd_impl.ps1:Zone.Identifier
 powershell -NoProfile -ExecutionPolicy RemoteSigned ^
-    "%~dp0.cipd_impl.ps1" ^
+    -Command "%~dp0.cipd_impl.ps1" ^
     -CipdBinary "%CIPD_BINARY%" ^
-    -Platform "%CIPD_PLATFORM%" ^
     -BackendURL "%CIPD_BACKEND%" ^
     -VersionFile "%VERSION_FILE%" ^
   <nul

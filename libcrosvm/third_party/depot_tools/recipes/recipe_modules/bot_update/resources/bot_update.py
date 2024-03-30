@@ -5,6 +5,9 @@
 
 # TODO(hinoka): Use logging.
 
+from __future__ import division
+from __future__ import print_function
+
 import codecs
 from contextlib import contextmanager
 import copy
@@ -25,8 +28,18 @@ import uuid
 
 import os.path as path
 
+# TODO(crbug.com/1227140): Clean up when py2 is no longer supported.
 from io import BytesIO
-from urllib.parse import urlparse
+try:
+  import urlparse
+except ImportError:  # pragma: no cover
+  import urllib.parse as urlparse
+
+# Cache the string-escape codec to ensure subprocess can find it later.
+# See crbug.com/912292#c2 for context.
+# TODO(crbug.com/1227140): Clean up when py2 is no longer supported.
+if sys.version_info.major == 2:
+  codecs.lookup('string-escape')
 
 # How many bytes at a time to read from pipes.
 BUF_SIZE = 256
@@ -145,7 +158,7 @@ class RepeatingTimer(threading.Thread):
 
 def _print_pstree():
   """Debugging function used to print "ps auxwwf" for stuck processes."""
-  if sys.platform.startswith('linux'):
+  if sys.platform.startswith('linux2'):
     # Add new line for cleaner output
     print()
     subprocess.call(['ps', 'auxwwf'])
@@ -155,6 +168,13 @@ def _kill_process(proc):
   print('Killing stale process...')
   proc.kill()
 
+
+# TODO(crbug.com/1227140): Clean up when py2 is no longer supported.
+def _stdout_write(buf):
+  try:
+    sys.stdout.buffer.write(buf)
+  except AttributeError:
+    sys.stdout.write(buf)
 
 
 def call(*args, **kwargs):  # pragma: no cover
@@ -215,10 +235,10 @@ def call(*args, **kwargs):  # pragma: no cover
       if hanging_cr:
         buf = buf[:-1]
       buf = buf.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
-      sys.stdout.buffer.write(buf)
+      _stdout_write(buf)
       out.write(buf)
     if hanging_cr:
-      sys.stdout.buffer.write(b'\n')
+      _stdout_write(b'\n')
       out.write(b'\n')
 
     code = proc.wait()
@@ -311,7 +331,7 @@ def modify_solutions(input_solutions):
   solutions = copy.deepcopy(input_solutions)
   for solution in solutions:
     original_url = solution['url']
-    parsed_url = urlparse(original_url)
+    parsed_url = urlparse.urlparse(original_url)
     parsed_path = parsed_url.path
 
     solution['managed'] = False
@@ -334,20 +354,6 @@ def remove(target, cleanup_dir):
   print('Marking for removal %s => %s' % (target, dest))
   try:
     os.rename(target, dest)
-  except OSError as os_e:
-    print('Error renaming %s to %s: %s' % (target, dest, str(os_e)))
-    if not target.endswith(('/.', '\.')):
-      raise
-    # Because the solutions name is '.', we might be in a bot
-    # directory that is locked to prevent renaming. Instead
-    # try moving renaming all content within the directory.
-    print('Trying to rename all contents %s -> %s' % (target, dest))
-    if target.endswith('.'):
-      allfiles = os.listdir(target)
-      for f in allfiles:
-        target_path = os.path.join(target, f)
-        dst_path = os.path.join(dest, f)
-        os.renames(target_path, dst_path)
   except Exception as e:
     print('Error renaming %s to %s: %s' % (target, dest, str(e)))
     raise
@@ -412,10 +418,8 @@ def gclient_sync(with_branch_heads,
                  gerrit_rebase_patch_ref,
                  download_topics=False,
                  experiments=None):
-  args = [
-      'sync', '--verbose', '--reset', '--force', '--upstream', '--nohooks',
-      '--noprehooks', '--delete_unversioned_trees'
-  ]
+  args = ['sync', '--verbose', '--reset', '--force',
+          '--nohooks', '--noprehooks', '--delete_unversioned_trees']
   if with_branch_heads:
     args += ['--with_branch_heads']
   if with_tags:
@@ -458,7 +462,7 @@ def normalize_git_url(url):
   * Do not contain /a/ in their path.
   """
   try:
-    p = urlparse(url)
+    p = urlparse.urlparse(url)
   except Exception:
     # Not a url, just return it back.
     return url
@@ -533,9 +537,11 @@ def get_total_disk_space():
   if sys.platform.startswith('win'):
     _, total, free = (ctypes.c_ulonglong(), ctypes.c_ulonglong(), \
                       ctypes.c_ulonglong())
-    ret = ctypes.windll.kernel32.GetDiskFreeSpaceExW(cwd, ctypes.byref(_),
-                                                     ctypes.byref(total),
-                                                     ctypes.byref(free))
+    if sys.version_info >= (3,) or isinstance(cwd, unicode):
+      fn = ctypes.windll.kernel32.GetDiskFreeSpaceExW
+    else:
+      fn = ctypes.windll.kernel32.GetDiskFreeSpaceExA
+    ret = fn(cwd, ctypes.byref(_), ctypes.byref(total), ctypes.byref(free))
     if ret == 0:
       # WinError() will fetch the last error code.
       raise ctypes.WinError()
@@ -705,8 +711,7 @@ def _git_checkout(sln, sln_dir, revisions, refs, no_fetch_tags, git_cache_dir,
         remove(sln_dir, cleanup_dir)
 
       # Use "tries=1", since we retry manually in this loop.
-      if not path.isdir(sln_dir) or (path.isdir(sln_dir) and sln_dir.endswith(
-          ('/.', '\.')) and len(os.listdir(sln_dir)) == 0):
+      if not path.isdir(sln_dir):
         git('clone', '--no-checkout', '--local', '--shared', mirror_dir,
             sln_dir)
         _git_disable_gc(sln_dir)
@@ -871,7 +876,7 @@ def parse_revisions(revisions, root):
       # This is an alt_root@revision argument.
       current_root, current_rev = split_revision
 
-      parsed_root = urlparse(current_root)
+      parsed_root = urlparse.urlparse(current_root)
       if parsed_root.scheme in ['http', 'https']:
         # We want to normalize git urls into .git urls.
         normalized_root = 'https://' + parsed_root.netloc + parsed_root.path
@@ -1022,22 +1027,6 @@ def checkout(options, git_slns, specs, revisions, step_text):
   ver = git('version').strip()
   print('Using %s' % ver)
 
-  # Get the epoch of the git cache from a cache epoch marker file. If this file
-  # does not exist, create one with the current timestamp.
-  cache_epoch_marker_path = os.path.join(options.git_cache_dir, '.cache_epoch')
-  if os.path.isfile(cache_epoch_marker_path):
-    with open(cache_epoch_marker_path) as f:
-      cache_epoch = f.readline().strip()
-  else:
-    # This ensures the cache path exists. This is a noop if the path already
-    # exists. See crbug.com/1448769#c8.
-    os.makedirs(options.git_cache_dir, exist_ok=True)
-    with open(cache_epoch_marker_path, 'w') as f:
-      cache_epoch = int(time.time())
-      print(cache_epoch, file=f)
-
-  print('git_cache epoch: {}'.format(datetime.fromtimestamp(int(cache_epoch))))
-
   try:
     protocol = git('config', '--get', 'protocol.version')
     print('Using git protocol version %s' % protocol)
@@ -1050,7 +1039,11 @@ def checkout(options, git_slns, specs, revisions, step_text):
   if os.path.exists(dirty_path):
     ensure_no_checkout(dir_names, options.cleanup_dir)
 
-  should_create_dirty_file = True
+  with open(dirty_path, 'w') as f:
+    # create file, no content
+    pass
+
+  should_delete_dirty_file = False
   experiments = []
   if options.experiments:
     experiments = options.experiments.split(',')
@@ -1090,12 +1083,12 @@ def checkout(options, git_slns, specs, revisions, step_text):
 
           experiments=experiments)
       ensure_checkout(**checkout_parameters)
-      should_create_dirty_file = False
+      should_delete_dirty_file = True
     except GclientSyncFailed:
       print('We failed gclient sync, lets delete the checkout and retry.')
       ensure_no_checkout(dir_names, options.cleanup_dir)
       ensure_checkout(**checkout_parameters)
-      should_create_dirty_file = False
+      should_delete_dirty_file = True
   except PatchFailed as e:
     # Tell recipes information such as root, got_revision, etc.
     emit_json(options.output_json,
@@ -1107,13 +1100,15 @@ def checkout(options, git_slns, specs, revisions, step_text):
               failed_patch_body=e.output,
               step_text='%s PATCH FAILED' % step_text,
               fixed_revisions=revisions)
-    should_create_dirty_file = False
+    should_delete_dirty_file = True
     raise
   finally:
-    if should_create_dirty_file:
-      with open(dirty_path, 'w') as f:
-        # create file, no content
-        pass
+    if should_delete_dirty_file:
+      try:
+        os.remove(dirty_path)
+      except OSError:
+        print('Dirty file %s has been removed by a different process.' %
+              dirty_path)
 
   # Take care of got_revisions outputs.
   revision_mapping = GOT_REVISION_MAPPINGS.get(git_slns[0]['url'], {})
@@ -1127,17 +1122,14 @@ def checkout(options, git_slns, specs, revisions, step_text):
     revision_mapping['got_revision'] = first_sln
 
   manifest = create_manifest()
-  properties = parse_got_revision(manifest, revision_mapping)
+  got_revisions = parse_got_revision(manifest, revision_mapping)
 
-  if not properties:
+  if not got_revisions:
     # TODO(hinoka): We should probably bail out here, but in the interest
     # of giving mis-configured bots some time to get fixed use a dummy
     # revision here.
-    properties = {'got_revision': 'BOT_UPDATE_NO_REV_FOUND'}
+    got_revisions = { 'got_revision': 'BOT_UPDATE_NO_REV_FOUND' }
     #raise Exception('No got_revision(s) found in gclient output')
-
-  # Add git cache age to the output.properties
-  properties['git_cache_epoch'] = cache_epoch
 
   # Tell recipes information such as root, got_revision, etc.
   emit_json(options.output_json,
@@ -1146,7 +1138,7 @@ def checkout(options, git_slns, specs, revisions, step_text):
             patch_root=options.patch_root,
             step_text=step_text,
             fixed_revisions=revisions,
-            properties=properties,
+            properties=got_revisions,
             manifest=manifest)
 
 

@@ -11,9 +11,6 @@ then
   exit
 fi
 
-# Export for other depot_tools scripts to re-use.
-export DEPOT_TOOLS_DIR="${DEPOT_TOOLS_DIR:-$(dirname "$0")}"
-
 # Test if this script is running under a MSYS install. This is likely an error
 # if it is, so we warn the user accordingly.
 OUTPUT="$(uname | grep 'MSYS')"
@@ -28,15 +25,23 @@ if [ $MSYS = 0 ]; then
   echo
 fi
 
-base_dir="${DEPOT_TOOLS_DIR}"
-if [ -e "$base_dir/.disable_auto_update" ]; then
-  exit
-fi
-
 # Test if this script is running under a MinGW install.  If it is, we will
 # hardcode the paths to Git where possible.
 OUTPUT="$(uname | grep 'MINGW')"
 MINGW=$?
+
+if [ $MINGW = 0 ]; then
+  base_dir="${0%/*}"
+else
+  base_dir=$(dirname "$0")
+  if [ -L "$base_dir" ]; then
+    base_dir=`cd "$base_dir" && pwd -P`
+  fi
+fi
+
+if [ -e "$base_dir/.disable_auto_update" ]; then
+  exit
+fi
 
 # We want to update the bundled tools even under MinGW.
 if [ $MINGW = 0 ]; then
@@ -120,6 +125,7 @@ function update_git_repo {
 
 # Update git checkouts.
 if [ "X$DEPOT_TOOLS_UPDATE" != "X0" ]; then
+  echo "Updating depot_tools..." 1>&2
   if [ -e "$base_dir/.git" ]; then
     cd "$base_dir"
     update_git_repo
@@ -143,8 +149,5 @@ if [ "X$DEPOT_TOOLS_UPDATE" != "X0" ]; then
     source "$base_dir/bootstrap_python3"
     bootstrap_python3
   fi
-
-  # Restart goma if it is updated.
-  goma_ctl update_hook
 fi
 

@@ -137,7 +137,8 @@ vkr_allocator_fini(void)
    if (!vkr_allocator_initialized)
       return;
 
-   list_for_each_entry_safe (struct vkr_opaque_fd_mem_info, mem_info, &vkr_allocator.memories, head)
+   struct vkr_opaque_fd_mem_info *mem_info, *mem_info_temp;
+   LIST_FOR_EACH_ENTRY_SAFE (mem_info, mem_info_temp, &vkr_allocator.memories, head)
       vkr_allocator_free_memory(mem_info);
 
    for (uint32_t i = 0; i < vkr_allocator.device_count; ++i) {
@@ -257,7 +258,8 @@ vkr_allocator_resource_map(struct virgl_resource *res, void **map, uint64_t *out
 static struct vkr_opaque_fd_mem_info *
 vkr_allocator_get_mem_info(struct virgl_resource *res)
 {
-   list_for_each_entry_safe (struct vkr_opaque_fd_mem_info, mem_info, &vkr_allocator.memories, head)
+   struct vkr_opaque_fd_mem_info *mem_info, *mem_info_temp;
+   LIST_FOR_EACH_ENTRY_SAFE (mem_info, mem_info_temp, &vkr_allocator.memories, head)
       if (mem_info->res_id == res->res_id)
          return mem_info;
 

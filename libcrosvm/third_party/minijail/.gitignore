@@ -32,7 +32,7 @@
 *.test
 
 # Google Test.
-googletest-*
+googletest-release*
 
 # Cargo build targets.
 /rust/**/target
@@ -47,3 +47,4 @@ minijail.code-workspace
 
 # Generated code:
 /rust/minijail-sys/libminijail.rs
+

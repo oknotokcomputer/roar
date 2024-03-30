@@ -32,6 +32,13 @@
 #define SUPPORT_YUV422
 #endif
 
+// clang-format off
+#if defined(MTK_MT8195) || \
+    defined(MTK_MT8188G)
+// clang-format on
+#define SUPPORT_P010
+#endif
+
 // All platforms except MT8173 should USE_NV12_FOR_HW_VIDEO_DECODING
 // and SUPPORT_FP16_AND_10BIT_ABGR
 // clang-format off
@@ -45,17 +52,6 @@
 #define SUPPORT_FP16_AND_10BIT_ABGR
 #else
 #define DONT_USE_64_ALIGNMENT_FOR_VIDEO_BUFFERS
-#endif
-
-// Devices newer than MT8186 support AR30 overlays and 10-bit video.
-// clang-format off
-#if !defined(MTK_MT8173) && \
-    !defined(MTK_MT8183) && \
-    !defined(MTK_MT8186) && \
-    !defined(MTK_MT8192)
-// clang-format on
-#define SUPPORT_P010
-#define SUPPORT_AR30_OVERLAYS
 #endif
 
 // For Mali Sigurd based GPUs, the texture unit reads outside the specified texture dimensions.
@@ -129,11 +125,6 @@ static int mediatek_init(struct driver *drv)
 
 	drv_add_combination(drv, DRM_FORMAT_R8, &LINEAR_METADATA,
 			    BO_USE_SW_MASK | BO_USE_LINEAR | BO_USE_PROTECTED);
-
-#ifdef SUPPORT_AR30_OVERLAYS
-	drv_add_combination(drv, DRM_FORMAT_ARGB2101010, &LINEAR_METADATA,
-			    BO_USE_TEXTURE | BO_USE_SCANOUT | BO_USE_PROTECTED | BO_USE_LINEAR);
-#endif
 
 	/* YUYV format for video overlay and camera subsystem. */
 	drv_add_combination(drv, DRM_FORMAT_YUYV, &LINEAR_METADATA,

@@ -2,6 +2,11 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+try:
+  _STRING_TYPE = basestring
+except NameError:  # pragma: no cover
+  _STRING_TYPE = str
+
 from recipe_engine.config import config_item_context, ConfigGroup, BadConf
 from recipe_engine.config import ConfigList, Dict, Single, Static, Set, List
 
@@ -14,31 +19,31 @@ def BaseConfig(USE_MIRROR=True, CACHE_DIR=None,
   return ConfigGroup(
     solutions = ConfigList(
       lambda: ConfigGroup(
-        name = Single(str),
-        url = Single((str, type(None)), empty_val=''),
-        deps_file = Single(str, empty_val=deps_file, required=False,
+        name = Single(_STRING_TYPE),
+        url = Single((_STRING_TYPE, type(None)), empty_val=''),
+        deps_file = Single(_STRING_TYPE, empty_val=deps_file, required=False,
                            hidden=False),
         managed = Single(bool, empty_val=True, required=False, hidden=False),
-        custom_deps = Dict(value_type=(str, type(None))),
-        custom_vars = Dict(value_type=(str, bool)),
-        safesync_url = Single(str, required=False),
+        custom_deps = Dict(value_type=(_STRING_TYPE, type(None))),
+        custom_vars = Dict(value_type=(_STRING_TYPE, bool)),
+        safesync_url = Single(_STRING_TYPE, required=False),
 
         revision = Single(
-            (str, gclient_api.RevisionResolver),
+            (_STRING_TYPE, gclient_api.RevisionResolver),
             required=False, hidden=True),
       )
     ),
-    deps_os = Dict(value_type=str),
-    hooks = List(str),
-    target_os = Set(str),
+    deps_os = Dict(value_type=_STRING_TYPE),
+    hooks = List(_STRING_TYPE),
+    target_os = Set(_STRING_TYPE),
     target_os_only = Single(bool, empty_val=False, required=False),
-    target_cpu = Set(str),
+    target_cpu = Set(_STRING_TYPE),
     target_cpu_only = Single(bool, empty_val=False, required=False),
     cache_dir = Static(cache_dir, hidden=False),
 
     # If supplied, use this as the source root (instead of the first solution's
     # checkout).
-    src_root = Single(str, required=False, hidden=True),
+    src_root = Single(_STRING_TYPE, required=False, hidden=True),
 
     # Maps 'solution' -> build_property
     # TODO(machenbach): Deprecate this in favor of the one below.
@@ -52,7 +57,7 @@ def BaseConfig(USE_MIRROR=True, CACHE_DIR=None,
     # of code here of setting custom vars AND passing in --revision. We hope
     # to remove custom vars later.
     revisions = Dict(
-        value_type=(str, gclient_api.RevisionResolver),
+        value_type=(_STRING_TYPE, gclient_api.RevisionResolver),
         hidden=True),
 
     # TODO(iannucci): HACK! The use of None here to indicate that we apply this
@@ -279,43 +284,6 @@ def expect_tests(c):
   soln.url = 'https://chromium.googlesource.com/infra/testing/expect_tests.git'
   c.got_revision_mapping['expect_tests'] = 'got_revision'
 
-
-# TODO(crbug.com/1415507): Delete the old infra configs and rename
-# the _superproject configs after migration deadline.
-@config_ctx()
-def infra_superproject(c):
-  soln = c.solutions.add()
-  soln.name = '.'
-  soln.url = 'https://chromium.googlesource.com/infra/infra_superproject.git'
-  c.got_revision_mapping['infra'] = 'got_revision'
-  c.got_revision_mapping['.'] = 'got_revision_superproject'
-  c.repo_path_map.update({
-      'https://chromium.googlesource.com/infra/luci/gae':
-      ('infra/go/src/go.chromium.org/gae', 'HEAD'),
-      'https://chromium.googlesource.com/infra/luci/luci-py':
-      ('infra/luci', 'HEAD'),
-      'https://chromium.googlesource.com/infra/luci/luci-go':
-      ('infra/go/src/go.chromium.org/luci', 'HEAD'),
-      'https://chromium.googlesource.com/infra/luci/recipes-py':
-      ('infra/recipes-py', 'HEAD'),
-      'https://chromium.googlesource.com/infra/infra': ('infra', None)
-  })
-
-
-@config_ctx()
-def infra_internal_superproject(c):
-  soln = c.solutions.add()
-  soln.name = '.'
-  soln.custom_vars = {'checkout_internal': True}
-  soln.url = 'https://chromium.googlesource.com/infra/infra_superproject.git'
-  c.got_revision_mapping['infra_internal'] = 'got_revision'
-  c.got_revision_mapping['.'] = 'got_revision_superproject'
-  c.repo_path_map.update({
-      'https://chrome-internal.googlesource.com/infra/infra_internal':
-      ('infra_internal', None)
-  })
-
-
 @config_ctx()
 def infra(c):
   soln = c.solutions.add()
@@ -486,6 +454,7 @@ def gerrit(c):
   s = c.solutions.add()
   s.name = 'gerrit'
   s.url = 'https://gerrit.googlesource.com/gerrit.git'
+  c.revisions['gerrit'] = 'refs/heads/master'
 
 @config_ctx(includes=['gerrit'])
 def gerrit_plugins_binary_size(c):
@@ -515,6 +484,13 @@ def gerrit_plugins_chromium_binary_size(c):
   s.url = ChromiumGitURL(c, 'infra', 'gerrit-plugins',
                          'chromium-binary-size.git')
   c.got_revision_mapping['gerrit_plugins_chromium_binary_size'] = 'got_revision'
+
+@config_ctx(includes=['gerrit'])
+def gerrit_plugins_chromium_style(c):
+  s = c.solutions.add()
+  s.name = 'gerrit_plugins_chromium_style'
+  s.url = ChromiumGitURL(c, 'infra', 'gerrit-plugins', 'chromium-style.git')
+  c.got_revision_mapping['gerrit_plugins_binary_size'] = 'got_revision'
 
 @config_ctx(includes=['gerrit'])
 def gerrit_plugins_chumpdetector(c):
@@ -550,10 +526,3 @@ def gerrit_plugins_tricium(c):
   s.name = 'gerrit_plugins_tricium'
   s.url = ChromiumGitURL(c, 'infra', 'gerrit-plugins', 'tricium.git')
   c.got_revision_mapping['gerrit_plugins_tricium'] = 'got_revision'
-
-@config_ctx()
-def crossbench(c):
-  soln = c.solutions.add()
-  soln.name = 'crossbench'
-  soln.url = 'https://chromium.googlesource.com/crossbench'
-  c.got_revision_mapping['crossbench'] = 'got_revision'

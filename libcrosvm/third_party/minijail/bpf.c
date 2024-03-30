@@ -232,7 +232,7 @@ size_t bpf_arg_comp(struct sock_filter **pfilter, int op, int argidx,
 	struct sock_filter *filter =
 	    calloc(filter_len, sizeof(struct sock_filter));
 	struct sock_filter *curr_block = filter;
-	size_t (*comp_function)(struct sock_filter *filter, unsigned long k,
+	size_t (*comp_function)(struct sock_filter * filter, unsigned long k,
 				unsigned char jt, unsigned char jf);
 	int flip = 0;
 
@@ -279,8 +279,6 @@ size_t bpf_arg_comp(struct sock_filter **pfilter, int op, int argidx,
 		flip = 0;
 		break;
 	default:
-		curr_block = filter;
-		free(filter);
 		*pfilter = NULL;
 		return 0;
 	}

@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-PYTHON_VERSION_COMPATIBILITY = 'PY3'
+PYTHON_VERSION_COMPATIBILITY = 'PY2+3'
 
 DEPS = [
   'recipe_engine/buildbucket',
@@ -45,8 +45,7 @@ def RunSteps(api):
       file_name=api.properties.get('checkout_file_name'),
       submodule_update_recursive=submodule_update_recursive,
       use_git_cache=api.properties.get('use_git_cache'),
-      tags=api.properties.get('tags'),
-      depth=api.properties.get('depth'))
+      tags=api.properties.get('tags'))
 
   assert retVal == "deadbeef", (
     "expected retVal to be %r but was %r" % ("deadbeef", retVal))
@@ -121,8 +120,10 @@ def GenTests(api):
       api.buildbucket.ci_build(git_ref='refs/foo/bar')
   )
 
-  yield (api.test('can_fail_build', status="INFRA_FAILURE") +
-         api.step_data('git status can_fail_build', retcode=1))
+  yield (
+    api.test('can_fail_build') +
+    api.step_data('git status can_fail_build', retcode=1)
+  )
 
   yield (
     api.test('cannot_fail_build') +
@@ -134,8 +135,10 @@ def GenTests(api):
     api.properties(set_got_revision=True)
   )
 
-  yield (api.test('rebase_failed', status="INFRA_FAILURE") +
-         api.step_data('my repo rebase', retcode=1))
+  yield (
+    api.test('rebase_failed') +
+    api.step_data('my repo rebase', retcode=1)
+  )
 
   yield api.test('remote_not_origin') + api.properties(remote_name='not_origin')
 
@@ -153,12 +156,12 @@ def GenTests(api):
           'count-objects',
           stdout=api.raw_io.output(api.git.count_objects_output('xxx'))))
 
-  yield (api.test('count-objects_with_bad_output_fails_build',
-                  status="INFRA_FAILURE") +
-         api.step_data('count-objects',
-                       stdout=api.raw_io.output(
-                           api.git.count_objects_output('xxx'))) +
-         api.properties(count_objects_can_fail_build=True))
+  yield (
+      api.test('count-objects_with_bad_output_fails_build') +
+      api.step_data(
+          'count-objects',
+          stdout=api.raw_io.output(api.git.count_objects_output('xxx'))) +
+      api.properties(count_objects_can_fail_build=True))
   yield (
       api.test('cat-file_test') +
       api.step_data('git cat-file abcdef12345:TestFile',
@@ -170,8 +173,6 @@ def GenTests(api):
       api.test('git-cache-checkout') +
       api.properties(use_git_cache=True))
 
-  yield (api.test('new_branch_failed', status="INFRA_FAILURE") +
+  yield (api.test('new_branch_failed') +
          api.properties(set_both_upstream_and_upstream_current=True) +
          api.expect_exception('ValueError'))
-
-  yield (api.test('git-checkout-with-depth') + api.properties(depth=1))

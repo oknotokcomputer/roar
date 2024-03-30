@@ -17,25 +17,20 @@ if [ $# -ne 1 ] && [ $# -ne 2 ]; then
   exit 1
 fi
 
-build() {
-  ${CC:-cc} -dD "${SRC:-.}"/gen_constants.c -E "$@"
-}
+BUILD="${CC} -dD ${SRC:-.}/gen_constants.c -E"
 GEN_DEPS=1
 
 if [ $# -eq 2 ]; then
-  build() {
-    cat "${CAT_FILE}"
-  }
-  CAT_FILE="$1"
+  BUILD="cat $1"
   GEN_DEPS=0
   shift
 fi
 OUTFILE="$1"
 
-if [ "${GEN_DEPS}" -eq 1 ]; then
+if [ ${GEN_DEPS} -eq 1 ]; then
   # Generate a dependency file which helps the build tool to see when it
   # should regenerate ${OUTFILE}.
-  build -M -MF "${OUTFILE}.d"
+  ${BUILD} -M -MF "${OUTFILE}.d"
 fi
 
 # sed expression which extracts constants and converts them from:
@@ -56,7 +51,7 @@ cat <<-EOF > "${OUTFILE}"
 #include "gen_constants-inl.h"
 #include "libconstants.h"
 const struct constant_entry constant_table[] = {
-$(build | \
+$(${BUILD} | \
   grep -E '^#define [[:upper:]][[:upper:]0-9_]*[[:space:]]+[[:alnum:]_]' | \
   grep -Ev '(SIGRTMAX|SIGRTMIN|SIG_|NULL)' | \
   sort -u | \

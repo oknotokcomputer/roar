@@ -10,6 +10,8 @@ Example usage:
     -u https://chromium.googlesource.com/chromium/src/+log
 """
 
+from __future__ import print_function
+
 import argparse
 import json
 import logging
@@ -17,7 +19,13 @@ import os
 import sys
 import tarfile
 import time
-import urllib.parse
+
+try:
+  from urllib import urlencode
+  import urlparse
+except ImportError:  # pragma: no cover
+  from urllib.parse import urlencode
+  import urllib.parse as urlparse
 
 DEPOT_TOOLS = os.path.abspath(
     os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir,
@@ -28,13 +36,13 @@ from gerrit_util import CreateHttpConn, ReadHttpResponse, ReadHttpJsonResponse
 
 
 def reparse_url(parsed_url, query_params):
-  return urllib.parse.ParseResult(
+  return urlparse.ParseResult(
       scheme=parsed_url.scheme,
       netloc=parsed_url.netloc,
       path=parsed_url.path,
       params=parsed_url.params,
       fragment=parsed_url.fragment,
-      query=urllib.parse.urlencode(query_params, doseq=True))
+      query=urlencode(query_params, doseq=True))
 
 
 def gitiles_get(parsed_url, handler, attempts):
@@ -110,13 +118,13 @@ def main(arguments):
     args.extract_to = os.path.join(os.path.abspath(args.extract_to), '')
     os.makedirs(args.extract_to)
 
-  parsed_url = urllib.parse.urlparse(args.url)
+  parsed_url = urlparse.urlparse(args.url)
   if not parsed_url.scheme.startswith('http'):
     parser.error('Invalid URI scheme (expected http or https): %s' % args.url)
 
   query_params = {}
   if parsed_url.query:
-    query_params.update(urllib.parse.parse_qs(parsed_url.query))
+    query_params.update(urlparse.parse_qs(parsed_url.query))
   # Force the format specified on command-line.
   if query_params.get('format'):
     parser.error('URL must not contain format; use --format command line flag '

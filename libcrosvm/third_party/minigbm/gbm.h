@@ -339,16 +339,6 @@ gbm_bo_create_with_modifiers(struct gbm_device *gbm,
                              uint32_t format,
                              const uint64_t *modifiers,
                              const unsigned int count);
-
-struct gbm_bo *
-gbm_bo_create_with_modifiers2(struct gbm_device *gbm,
-                              uint32_t width,
-                              uint32_t height,
-                              uint32_t format,
-                              const uint64_t *modifiers,
-                              const unsigned int count,
-                              uint32_t flags);
-
 #define GBM_BO_IMPORT_WL_BUFFER         0x5501
 #define GBM_BO_IMPORT_EGL_IMAGE         0x5502
 #define GBM_BO_IMPORT_FD                0x5503
@@ -444,7 +434,7 @@ uint32_t
 gbm_bo_get_stride(struct gbm_bo *bo);
 
 uint32_t
-gbm_bo_get_stride_for_plane(struct gbm_bo *bo, int plane);
+gbm_bo_get_stride_for_plane(struct gbm_bo *bo, size_t plane);
 
 uint32_t
 gbm_bo_get_format(struct gbm_bo *bo);
@@ -453,7 +443,7 @@ uint32_t
 gbm_bo_get_bpp(struct gbm_bo *bo);
 
 uint32_t
-gbm_bo_get_offset(struct gbm_bo *bo, int plane);
+gbm_bo_get_offset(struct gbm_bo *bo, size_t plane);
 
 struct gbm_device *
 gbm_bo_get_device(struct gbm_bo *bo);
@@ -471,7 +461,7 @@ int
 gbm_bo_get_plane_count(struct gbm_bo *bo);
 
 union gbm_bo_handle
-gbm_bo_get_handle_for_plane(struct gbm_bo *bo, int plane);
+gbm_bo_get_handle_for_plane(struct gbm_bo *bo, size_t plane);
 
 int
 gbm_bo_get_fd_for_plane(struct gbm_bo *bo, int plane);
@@ -500,15 +490,6 @@ gbm_surface_create_with_modifiers(struct gbm_device *gbm,
                                   uint32_t format,
                                   const uint64_t *modifiers,
                                   const unsigned int count);
-
-struct gbm_surface *
-gbm_surface_create_with_modifiers2(struct gbm_device *gbm,
-                                   uint32_t width,
-                                   uint32_t height,
-                                   uint32_t format,
-                                   const uint64_t *modifiers,
-                                   const unsigned int count,
-                                   uint32_t flags);
 
 struct gbm_bo *
 gbm_surface_lock_front_buffer(struct gbm_surface *surface);

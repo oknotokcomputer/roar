@@ -83,7 +83,6 @@ static void
 vkr_dispatch_vkGetPipelineCacheData(UNUSED struct vn_dispatch_context *dispatch,
                                     struct vn_command_vkGetPipelineCacheData *args)
 {
-   TRACE_FUNC();
    struct vkr_device *dev = vkr_device_from_handle(args->device);
    struct vn_device_proc_table *vk = &dev->proc_table;
 
@@ -96,7 +95,6 @@ static void
 vkr_dispatch_vkMergePipelineCaches(UNUSED struct vn_dispatch_context *dispatch,
                                    struct vn_command_vkMergePipelineCaches *args)
 {
-   TRACE_FUNC();
    struct vkr_device *dev = vkr_device_from_handle(args->device);
    struct vn_device_proc_table *vk = &dev->proc_table;
 
@@ -109,7 +107,6 @@ static void
 vkr_dispatch_vkCreateGraphicsPipelines(struct vn_dispatch_context *dispatch,
                                        struct vn_command_vkCreateGraphicsPipelines *args)
 {
-   TRACE_FUNC();
    struct vkr_context *ctx = dispatch->data;
    struct vkr_device *dev = vkr_device_from_handle(args->device);
    struct object_array arr;
@@ -124,7 +121,6 @@ static void
 vkr_dispatch_vkCreateComputePipelines(struct vn_dispatch_context *dispatch,
                                       struct vn_command_vkCreateComputePipelines *args)
 {
-   TRACE_FUNC();
    struct vkr_context *ctx = dispatch->data;
    struct vkr_device *dev = vkr_device_from_handle(args->device);
    struct object_array arr;

@@ -765,11 +765,11 @@ void drv_resolve_format_and_use_flags(struct driver *drv, uint32_t format, uint6
 						   out_use_flags);
 }
 
-void drv_log_prefix(enum drv_log_level level, const char *prefix, const char *func, int line,
+void drv_log_prefix(enum drv_log_level level, const char *prefix, const char *file, int line,
 		    const char *format, ...)
 {
 	char buf[50];
-	snprintf(buf, sizeof(buf), "[%s:%s(%d)]", prefix, func, line);
+	snprintf(buf, sizeof(buf), "[%s:%s(%d)]", prefix, basename(file), line);
 
 	va_list args;
 	va_start(args, format);

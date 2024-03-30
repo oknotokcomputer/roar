@@ -8,25 +8,24 @@ repository = "https://github.com/rust-vmm/vhost"
 documentation = "https://docs.rs/vhost"
 readme = "README.md"
 license = "Apache-2.0 or BSD-3-Clause"
-edition = "2018"
+edition = "2021"
 
 [features]
 default = []
-vhost-vsock = []
-vhost-kern = ["vm-memory"]
-vhost-user = []
-vhost-user-master = ["vhost-user"]
-vhost-user-slave = ["vhost-user"]
 
 [dependencies]
-bitflags = ">=1.0.1"
+anyhow = "*"
+base = { path = "../../base" }
+bitflags = "2.3"
+cfg-if = "1.0.0"
+enumn = "0.1.0"
 libc = ">=0.2.39"
-sys_util = "*"
+remain = "*"
 tempfile = "*"
-vm-memory = { version = "0.2.0", optional = true }
+thiserror = { version = "1.0.20" }
+zerocopy = { version = "0.7", features = ["derive"] }
 
-[dev-dependencies]
-vm-memory = { version = "0.2.0", features=["backend-mmap"] }
-
-[patch.crates-io]
-sys_util = { path = "../../../platform/crosvm/sys_util" } # ignored by ebuild
+[target.'cfg(windows)'.dependencies]
+serde = { version = "1", features = [ "derive" ] }
+serde_json = "*"
+tube_transporter = { path = "../../tube_transporter" }

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# Copyright 2011 The ChromiumOS Authors
+# Copyright (c) 2011 The Chromium OS Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
+
 """Wrapper for chromite tools.
 
 The script is intend to be symlinked to any number of chromite tools, attempts
@@ -11,134 +12,76 @@ possible.
 It is intended to used strictly outside of the chroot.
 """
 
-import enum
 import os
-from pathlib import Path
-import subprocess
 import sys
-from typing import List, NamedTuple, Optional, Tuple
+
 
 # Min version of Python that we *want*.  We warn for older versions.
-MIN_PYTHON_VER_SOFT = (3, 8)
+MIN_PYTHON_VER_SOFT = (3, 6)
 # Min version of Python that we *require*.  We abort for older versions.
-MIN_PYTHON_VER_HARD = (3, 8)
-
-DEPOT_TOOLS_DIR = Path(__file__).resolve().parent
-
-# Directory where cros-specific CIPD packages are installed.
-CIPD_CACHE_DIR = DEPOT_TOOLS_DIR / '.cipd_bin_cros_python2'
+MIN_PYTHON_VER_HARD = (3, 6)
 
 
-class Checkout(NamedTuple):
-    """Some details about this checkout."""
+def _FindChromite(path):
+  """Find the chromite dir in a repo, gclient, or submodule checkout."""
+  path = os.path.abspath(path)
+  # Depending on the checkout type (whether repo chromeos or gclient chrome)
+  # Chromite lives in a different location.
+  roots = (
+      ('.repo', 'chromite/.git'),
+      ('.gclient', 'src/third_party/chromite/.git'),
+      ('src/.gitmodules', 'src/third_party/chromite/.git'),
+  )
 
-    root: Path
-    chromite_dir: Path
-
-
-def _FindChromite(path: Path) -> Optional[Checkout]:
-    """Find the chromite dir in a repo, gclient, or submodule checkout."""
-    path = path.resolve()
-    # Depending on the checkout type (whether repo chromeos or gclient chrome)
-    # Chromite lives in a different location.
-    roots = (
-        # CrOS checkout using normal manifest.
-        ('.repo', 'chromite/.git'),
-        # CrOS checkout using CitC.
-        ('../.citc', 'chromite/__init__.py'),
-        # Chromium checkout using gclient+DEPS.
-        ('.gclient', 'src/third_party/chromite/.git'),
-        # Chromium checkout using git submodules (submodules at root).
-        ('.gitmodules', 'chromite/.git'),
-        # Chromium checkout using git submodules.
-        ('src/.gitmodules', 'src/third_party/chromite/.git'),
-        # Chromium checkout using CitC.
-        ('../.citc', 'third_party/chromite/__init__.py'),
-    )
-
-    while path != Path("/"):
-        for root, chromite_git_dir in roots:
-            if all((path / x).exists() for x in [root, chromite_git_dir]):
-                return Checkout(path, (path / chromite_git_dir).parent)
-        path = path.parent
-    return None
+  while path != '/':
+    for root, chromite_git_dir in roots:
+      if all(os.path.exists(os.path.join(path, x))
+             for x in [root, chromite_git_dir]):
+        return os.path.dirname(os.path.join(path, chromite_git_dir))
+    path = os.path.dirname(path)
+  return None
 
 
 def _MissingErrorOut(target):
-    sys.stderr.write("""ERROR: Couldn't find the chromite tool %s.
+  sys.stderr.write("""ERROR: Couldn't find the chromite tool %s.
 
-Please change to a directory inside your ChromiumOS source tree
-and retry.  If you need to setup a ChromiumOS source tree, see
+Please change to a directory inside your Chromium OS source tree
+and retry.  If you need to setup a Chromium OS source tree, see
   https://chromium.googlesource.com/chromiumos/docs/+/HEAD/developer_guide.md
 """ % target)
-    return 127
+  return 127
 
 
 def _CheckPythonVersion():
-    """Verify active Python is new enough."""
-    if sys.version_info >= MIN_PYTHON_VER_SOFT:
-        return
+  """Verify active Python is new enough."""
+  if sys.version_info >= MIN_PYTHON_VER_SOFT:
+    return
 
-    progname = os.path.basename(sys.argv[0])
-    print('%s: ChromiumOS requires Python-%s+, but "%s" is "%s"' %
-          (progname, '.'.join(str(x) for x in MIN_PYTHON_VER_SOFT),
-           sys.executable, sys.version.replace('\n', ' ')),
-          file=sys.stderr)
-    if sys.version_info < MIN_PYTHON_VER_HARD:
-        print('%s: fatal: giving up since Python is too old.' % (progname, ),
-              file=sys.stderr)
-        sys.exit(1)
-
-    print(
-        'warning: temporarily continuing anyways; you must upgrade soon to '
-        'maintain support.',
+  progname = os.path.basename(sys.argv[0])
+  print('%s: Chrome OS requires Python-%s+, but "%s" is "%s"' %
+        (progname, '.'.join(str(x) for x in MIN_PYTHON_VER_SOFT),
+         sys.executable, sys.version.replace('\n', ' ')),
         file=sys.stderr)
+  if sys.version_info < MIN_PYTHON_VER_HARD:
+    print('%s: fatal: giving up since Python is too old.' % (progname,),
+          file=sys.stderr)
+    sys.exit(1)
 
-
-def _BootstrapVpython27():
-    """Installs the vpython2.7 packages into the cipd cache directory."""
-    subprocess.run([
-        'cipd', 'ensure', '-log-level', 'info', '-ensure-file',
-        DEPOT_TOOLS_DIR / 'cipd_manifest_cros_python2.txt', '-root',
-        CIPD_CACHE_DIR
-    ],
-                   check=True)
+  print('warning: temporarily continuing anyways; you must upgrade soon to '
+        'maintain support.', file=sys.stderr)
 
 
 def main():
-    _CheckPythonVersion()
+  _CheckPythonVersion()
 
-    result = _FindChromite(Path.cwd())
-    target = os.path.basename(sys.argv[0])
-    if result is None:
-        return _MissingErrorOut(target)
-    root, chromite_dir = result
+  chromite_dir = _FindChromite(os.getcwd())
+  target = os.path.basename(sys.argv[0])
+  if chromite_dir is None:
+    return _MissingErrorOut(target)
 
-    is_citc = (root.parent / ".citc").is_dir()
-    if is_citc:
-        # citc workspaces don't like dirty files like pyc.
-        os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
-
-    path = chromite_dir / "bin" / target
-
-    # Check to see if this is a script requiring vpython2.7.
-    with path.open("rb") as fp:
-        shebang = next(fp).strip()
-    interpreter = shebang.split()[-1]
-    if interpreter in (b'python', b'python2', b'python2.7', b'vpython'):
-        _BootstrapVpython27()
-        vpython = CIPD_CACHE_DIR / 'vpython'
-        args = [vpython]
-        if interpreter != b'vpython':
-            args.extend(
-                ['-vpython-spec', DEPOT_TOOLS_DIR / 'cros_python2.vpython'])
-        args.append(path)
-        path = vpython
-    else:
-        args = [path]
-
-    os.execv(path, args + sys.argv[1:])
+  path = os.path.join(chromite_dir, 'bin', target)
+  os.execv(path, [path] + sys.argv[1:])
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+  sys.exit(main())

@@ -28,7 +28,6 @@
 #include "util/u_memory.h"
 #include "util/u_math.h"
 #include <string.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <math.h>
 #include <errno.h>
@@ -207,7 +206,7 @@ struct dump_ctx {
    enum tgsi_processor_type prog_type;
    int size;
    struct vrend_glsl_strbufs glsl_strbufs;
-   unsigned instno;
+   uint instno;
 
    struct vrend_strbuf src_bufs[TGSI_FULL_MAX_SRC_REGISTERS];
    struct vrend_strbuf dst_bufs[TGSI_FULL_MAX_DST_REGISTERS];
@@ -390,7 +389,7 @@ struct dest_info {
   enum vrend_type_qualifier dstconv;
   enum vrend_type_qualifier udstconv;
   enum vrend_type_qualifier idstconv;
-  bool dst_override_no_wm[TGSI_FULL_MAX_DST_REGISTERS];
+  bool dst_override_no_wm[2];
   int32_t dest_index;
 };
 
@@ -398,8 +397,8 @@ struct source_info {
    enum vrend_type_qualifier svec4;
    int32_t sreg_index;
    bool tg4_has_component;
-   bool override_no_wm[TGSI_FULL_MAX_SRC_REGISTERS];
-   bool override_no_cast[TGSI_FULL_MAX_SRC_REGISTERS];
+   bool override_no_wm[3];
+   bool override_no_cast[3];
    int imm_value;
 };
 
@@ -513,12 +512,12 @@ static inline const char *get_wm_string(unsigned wm)
 static inline const char *get_swizzle_string(uint8_t swizzle)
 {
    switch (swizzle) {
-   case PIPE_SWIZZLE_X: return ".x";
-   case PIPE_SWIZZLE_Y: return ".y";
-   case PIPE_SWIZZLE_Z: return ".z";
-   case PIPE_SWIZZLE_W: return ".w";
-   case PIPE_SWIZZLE_0:
-   case PIPE_SWIZZLE_1: return ".0";
+   case PIPE_SWIZZLE_RED: return ".x";
+   case PIPE_SWIZZLE_GREEN: return ".y";
+   case PIPE_SWIZZLE_BLUE: return ".z";
+   case PIPE_SWIZZLE_ALPHA: return ".w";
+   case PIPE_SWIZZLE_ZERO: 
+   case PIPE_SWIZZLE_ONE: return ".0";
    default:
       assert(0);
       return "";
@@ -862,10 +861,10 @@ static bool add_images(struct dump_ctx *ctx, int first, int last,
 
    const struct util_format_description *descr = util_format_description(img_decl->Format);
    if (descr->nr_channels == 2 &&
-       descr->swizzle[0] == PIPE_SWIZZLE_X &&
-       descr->swizzle[1] == PIPE_SWIZZLE_Y &&
-       descr->swizzle[2] == PIPE_SWIZZLE_0 &&
-       descr->swizzle[3] == PIPE_SWIZZLE_1) {
+       descr->swizzle[0] == UTIL_FORMAT_SWIZZLE_X &&
+       descr->swizzle[1] == UTIL_FORMAT_SWIZZLE_Y &&
+       descr->swizzle[2] == UTIL_FORMAT_SWIZZLE_0 &&
+       descr->swizzle[3] == UTIL_FORMAT_SWIZZLE_1) {
       ctx->shader_req_bits |= SHADER_REQ_NV_IMAGE_FORMATS;
    } else if (img_decl->Format == PIPE_FORMAT_R11G11B10_FLOAT ||
               img_decl->Format == PIPE_FORMAT_R10G10B10A2_UINT ||
@@ -874,10 +873,10 @@ static bool add_images(struct dump_ctx *ctx, int first, int last,
               img_decl->Format == PIPE_FORMAT_R16G16B16A16_SNORM)
       ctx->shader_req_bits |= SHADER_REQ_NV_IMAGE_FORMATS;
    else if (descr->nr_channels == 1 &&
-            descr->swizzle[0] == PIPE_SWIZZLE_X &&
-            descr->swizzle[1] == PIPE_SWIZZLE_0 &&
-            descr->swizzle[2] == PIPE_SWIZZLE_0 &&
-            descr->swizzle[3] == PIPE_SWIZZLE_1 &&
+            descr->swizzle[0] == UTIL_FORMAT_SWIZZLE_X &&
+            descr->swizzle[1] == UTIL_FORMAT_SWIZZLE_0 &&
+            descr->swizzle[2] == UTIL_FORMAT_SWIZZLE_0 &&
+            descr->swizzle[3] == UTIL_FORMAT_SWIZZLE_1 &&
             (descr->channel[0].size == 8 || descr->channel[0].size ==16))
       ctx->shader_req_bits |= SHADER_REQ_NV_IMAGE_FORMATS;
 
@@ -1090,11 +1089,6 @@ varying_bit_from_semantic_and_index(enum tgsi_semantic semantic, int index)
    case TGSI_SEMANTIC_PSIZE:
       return VARYING_SLOT_PSIZ;
    case TGSI_SEMANTIC_GENERIC:
-      if (unlikely(index >= MAX_VARYING)) {
-         virgl_warn("Warning: Out of range TGSI_SEMANTIC_GENERIC index: %d\n", index);
-         return VARYING_SLOT_VAR0;
-      }
-
       return VARYING_SLOT_VAR0 + index;
    case TGSI_SEMANTIC_FACE:
       return VARYING_SLOT_FACE;
@@ -1110,11 +1104,7 @@ varying_bit_from_semantic_and_index(enum tgsi_semantic semantic, int index)
    case TGSI_SEMANTIC_CLIPVERTEX:
       return VARYING_SLOT_CLIP_VERTEX;
    case TGSI_SEMANTIC_TEXCOORD:
-      if (unlikely(index >= 8)) {
-         virgl_warn("Warning: Out of range TGSI_SEMANTIC_TEXCOORD index: %d\n", index);
-         return VARYING_SLOT_TEX0;
-      }
-
+      assert(index < 8);
       return (VARYING_SLOT_TEX0 + index);
    case TGSI_SEMANTIC_PCOORD:
       return VARYING_SLOT_PNTC;
@@ -1127,11 +1117,6 @@ varying_bit_from_semantic_and_index(enum tgsi_semantic semantic, int index)
    case TGSI_SEMANTIC_TESSOUTER:
       return VARYING_SLOT_TESS_LEVEL_OUTER;
    case TGSI_SEMANTIC_PATCH:
-      if (unlikely(index >= MAX_VARYING)) {
-         virgl_warn("Warning: Out of range TGSI_SEMANTIC_PATCH index: %d\n", index);
-         return VARYING_SLOT_PATCH0;
-      }
-
       return VARYING_SLOT_PATCH0 + index;
    default:
       virgl_warn("Warning: Bad TGSI semantic: %d/%d\n", semantic, index);
@@ -1157,7 +1142,7 @@ static int lookup_image_array(const struct dump_ctx *ctx, int index)
    return image ? image->first : -1;
 }
 
-static bool
+static boolean
 iter_decls(struct tgsi_iterate_context *iter,
            struct tgsi_full_declaration *decl)
 {
@@ -1298,12 +1283,12 @@ struct syvalue_prop_map {
 };
 
 
-static bool
+static boolean
 iter_declaration(struct tgsi_iterate_context *iter,
                  struct tgsi_full_declaration *decl)
 {
    struct dump_ctx *ctx = (struct dump_ctx *)iter;
-   uint32_t i;
+   int i;
    int color_offset = 0;
    const char *name_prefix;
    bool add_two_side = false;
@@ -1403,8 +1388,8 @@ iter_declaration(struct tgsi_iterate_context *iter,
                ctx->inputs[i].glsl_no_index = true;
             } else {
                if (ctx->key->color_two_side) {
-                  uint32_t j = ctx->num_inputs++;
-                  if (ctx->num_inputs >= ARRAY_SIZE(ctx->inputs)) {
+                  int j = ctx->num_inputs++;
+                  if (ctx->num_inputs > ARRAY_SIZE(ctx->inputs)) {
                      virgl_error( "Number of inputs exceeded, max is %zd\n", ARRAY_SIZE(ctx->inputs));
                      return false;
                   }
@@ -1422,7 +1407,7 @@ iter_declaration(struct tgsi_iterate_context *iter,
                   ctx->color_in_mask |= (1 << decl->Semantic.Index);
 
                   if (ctx->front_face_emitted == false) {
-                     uint32_t k = ctx->num_inputs++;
+                     int k = ctx->num_inputs++;
                      if (ctx->num_inputs >= ARRAY_SIZE(ctx->inputs)) {
                         virgl_error( "Number of inputs exceeded, max is %zd\n", ARRAY_SIZE(ctx->inputs));
                         return false;
@@ -2025,7 +2010,7 @@ iter_declaration(struct tgsi_iterate_context *iter,
    return true;
 }
 
-static bool
+static boolean
 iter_property(struct tgsi_iterate_context *iter,
               struct tgsi_full_property *prop)
 {
@@ -2126,7 +2111,7 @@ iter_property(struct tgsi_iterate_context *iter,
    return true;
 }
 
-static bool
+static boolean
 iter_immediate(struct tgsi_iterate_context *iter,
                struct tgsi_full_immediate *imm)
 {
@@ -2297,10 +2282,10 @@ static void prepare_so_movs(struct dump_ctx *ctx)
    }
 }
 
-static const struct vrend_shader_io *get_io_slot(const struct vrend_shader_io *slots, uint32_t nslots, int idx)
+static const struct vrend_shader_io *get_io_slot(const struct vrend_shader_io *slots, unsigned nslots, int idx)
 {
    const struct vrend_shader_io *result = slots;
-   for (uint32_t i = 0; i < nslots; ++i, ++result) {
+   for (unsigned i = 0; i < nslots; ++i, ++result) {
       if ((result->first <=  idx) && (result->last >=  idx))
          return result;
    }
@@ -2393,11 +2378,9 @@ static void emit_so_movs(const struct dump_ctx *ctx,
             ctx->so_names[i] = strdup(out_var);
          }
       } else {
-         if (!ctx->so_names[i]) {
-            char ntemp[8];
-            snprintf(ntemp, 8, "tfout%d", i);
-            ctx->so_names[i] = strdup(ntemp);
-         }
+         char ntemp[8];
+         snprintf(ntemp, 8, "tfout%d", i);
+         ctx->so_names[i] = strdup(ntemp);
       }
       if (ctx->so->output[i].num_components == 1) {
          if (output->is_int)
@@ -2567,7 +2550,7 @@ static void emit_fragment_logicop(const struct dump_ctx *ctx,
    }
 
 
-   for (uint32_t i = 0; i < ctx->num_outputs; i++) {
+   for (unsigned i = 0; i < ctx->num_outputs; i++) {
       mask[i] = (1 << ctx->key->fs.surface_component_bits[i]) - 1;
       scale[i] = mask[i];
       switch (ctx->key->fs.logicop_func) {
@@ -2600,7 +2583,7 @@ static void emit_fragment_logicop(const struct dump_ctx *ctx,
       }
    }
 
-   for (uint32_t i = 0; i < ctx->num_outputs; i++) {
+   for (unsigned i = 0; i < ctx->num_outputs; i++) {
       switch (ctx->key->fs.logicop_func) {
       case PIPE_LOGICOP_CLEAR:
          strbuf_fmt(&full_op_buf[i], "%s", "vec4(0)");
@@ -2653,7 +2636,7 @@ static void emit_fragment_logicop(const struct dump_ctx *ctx,
       }
    }
 
-   for (uint32_t i = 0; i < ctx->num_outputs; i++) {
+   for (unsigned i = 0; i < ctx->num_outputs; i++) {
       switch (ctx->key->fs.logicop_func) {
       case PIPE_LOGICOP_NOOP:
          break;
@@ -2672,7 +2655,7 @@ static void emit_cbuf_swizzle(const struct dump_ctx *ctx,
                               struct vrend_glsl_strbufs *glsl_strbufs)
 {
    int cbuf_id = 0;
-   for (uint32_t i = 0; i < ctx->num_outputs; i++) {
+   for (uint i = 0; i < ctx->num_outputs; i++) {
       if (ctx->outputs[i].name == TGSI_SEMANTIC_COLOR) {
          if (ctx->key->fs.swizzle_output_rgb_to_bgr & (1 << cbuf_id)) {
             emit_buff(glsl_strbufs, "fsout_c%d = fsout_c%d.zyxw;\n", cbuf_id, cbuf_id);
@@ -2685,7 +2668,7 @@ static void emit_cbuf_swizzle(const struct dump_ctx *ctx,
 static void emit_cbuf_colorspace_convert(const struct dump_ctx *ctx,
                                          struct vrend_glsl_strbufs *glsl_strbufs)
 {
-   for (uint32_t i = 0; i < ctx->num_outputs; i++) {
+   for (uint i = 0; i < ctx->num_outputs; i++) {
       if (ctx->key->fs.needs_manual_srgb_encode_bitmask & (1 << i)) {
          emit_buff(glsl_strbufs,
                    "{\n"
@@ -3468,8 +3451,8 @@ static void translate_tex(struct dump_ctx *ctx,
 
                int swz = (packed_swizzles >> (i * 3)) & 7;
                switch (swz) {
-               case PIPE_SWIZZLE_0 : emit_buf(&ctx->glsl_strbufs,  "0.0"); break;
-               case PIPE_SWIZZLE_1 :
+               case PIPE_SWIZZLE_ZERO : emit_buf(&ctx->glsl_strbufs,  "0.0"); break;
+               case PIPE_SWIZZLE_ONE :
                   switch (dtypeprefix) {
                   case UINT_BITS_TO_FLOAT:
                      emit_buf(&ctx->glsl_strbufs,  "uintBitsToFloat(1u)");
@@ -3771,7 +3754,7 @@ static void make_ssbo_varstring(const struct dump_ctx *ctx, char result[128],
    const char *cname = tgsi_proc_to_prefix(ctx->prog_type);
    bool atomic_ssbo = ctx->ssbo_atomic_mask & (1 << register_index);
    const char *atomic_str = atomic_ssbo ? "atomic" : "";
-   unsigned base = atomic_ssbo ? ctx->ssbo_atomic_array_base : ctx->ssbo_array_base;
+   uint base = atomic_ssbo ? ctx->ssbo_atomic_array_base : ctx->ssbo_array_base;
 
    if (ctx->info.indirect_files & (1 << TGSI_FILE_BUFFER)) {
       if (indirect && !ctx->cfg->use_gles)
@@ -4014,7 +3997,7 @@ translate_load(const struct dump_ctx *ctx,
          char src[128] = "";
 
          bool atomic_ssbo = ctx->ssbo_atomic_mask & (1 << inst->Src[0].Register.Index);
-         unsigned base = atomic_ssbo ? ctx->ssbo_atomic_array_base : ctx->ssbo_array_base;
+         uint base = atomic_ssbo ? ctx->ssbo_atomic_array_base : ctx->ssbo_array_base;
          int start, array_count;
          uint32_t mask = ctx->ssbo_used_mask;
          u_bit_scan_consecutive_range(&mask, &start, &array_count);
@@ -4703,7 +4686,7 @@ get_source_info(struct dump_ctx *ctx,
       char arrayname[16] = "";
       char fp64_src[255];
       int swz_idx = 0, pre_idx = 0;
-      bool isfloatabsolute = src->Register.Absolute && stype != TGSI_TYPE_DOUBLE;
+      boolean isfloatabsolute = src->Register.Absolute && stype != TGSI_TYPE_DOUBLE;
 
       sinfo->override_no_wm[i] = false;
       sinfo->override_no_cast[i] = false;
@@ -5186,7 +5169,7 @@ get_source_info(struct dump_ctx *ctx,
       }
 
       if (stype == TGSI_TYPE_DOUBLE) {
-         bool isabsolute = src->Register.Absolute;
+         boolean isabsolute = src->Register.Absolute;
          snprintf(fp64_src, sizeof(fp64_src), "%s", src_buf->buf);
          strbuf_fmt(src_buf, "fp64_src[%d]", i);
          emit_buff(&ctx->glsl_strbufs, "%s.x = %spackDouble2x32(uvec2(%s%s))%s;\n", src_buf->buf, isabsolute ? "abs(" : "", fp64_src, swizzle, isabsolute ? ")" : "");
@@ -5308,7 +5291,7 @@ void rewrite_vs_pos_array(struct dump_ctx *ctx)
    int range_end = 0;
    int io_idx = 0;
 
-   for (uint32_t i = 0; i < ctx->num_inputs; ++i) {
+   for (uint i = 0; i < ctx->num_inputs; ++i) {
       if (ctx->inputs[i].name == TGSI_SEMANTIC_POSITION) {
          ctx->inputs[i].glsl_predefined_no_emit = true;
          if (ctx->inputs[i].first < range_start) {
@@ -5372,10 +5355,10 @@ void emit_fs_clipdistance_load(const struct dump_ctx *ctx,
 }
 
 static
-void renumber_io_arrays(uint32_t nio, struct vrend_shader_io *io)
+void renumber_io_arrays(unsigned nio, struct vrend_shader_io *io)
 {
    int next_array_id = 1;
-   for (uint32_t i = 0; i < nio; ++i) {
+   for (unsigned i = 0; i < nio; ++i) {
       if (io[i].name != TGSI_SEMANTIC_GENERIC &&
           io[i].name != TGSI_SEMANTIC_PATCH)
          continue;
@@ -5508,7 +5491,7 @@ add_missing_inputs(const struct dump_ctx *ctx, struct vrend_shader_io *inputs,
    return num_inputs;
 }
 
-static bool
+static boolean
 iter_instruction(struct tgsi_iterate_context *iter,
                  struct tgsi_full_instruction *inst)
 {
@@ -5518,7 +5501,7 @@ iter_instruction(struct tgsi_iterate_context *iter,
    const char *srcs[4];
    char *dsts[TGSI_FULL_MAX_DST_REGISTERS];
    char fp64_dsts[TGSI_FULL_MAX_DST_REGISTERS][255];
-   unsigned instno = ctx->instno++;
+   uint instno = ctx->instno++;
    char writemask[6] = "";
    char src_swizzle0[16];
 
@@ -5551,7 +5534,7 @@ iter_instruction(struct tgsi_iterate_context *iter,
       /* GLES doesn't allow invariant specifiers on inputs, but on GL with
        * GLSL < 4.30 it is required to match the output of the previous stage */
       if (!ctx->cfg->use_gles) {
-         for (uint32_t i = 0; i < ctx->num_inputs; ++i) {
+         for (unsigned i = 0; i < ctx->num_inputs; ++i) {
             uint32_t bit_pos = varying_bit_from_semantic_and_index(ctx->inputs[i].name, ctx->inputs[i].sid);
             uint32_t slot = bit_pos / 32;
             uint32_t bit = 1u << (bit_pos & 0x1f);
@@ -6157,7 +6140,7 @@ iter_instruction(struct tgsi_iterate_context *iter,
    return true;
 }
 
-static bool
+static boolean
 prolog(struct tgsi_iterate_context *iter)
 {
    struct dump_ctx *ctx = (struct dump_ctx *)iter;
@@ -6635,7 +6618,7 @@ static int emit_ios_common(const struct dump_ctx *ctx,
                            struct vrend_glsl_strbufs *glsl_strbufs,
                            uint32_t *shadow_samp_mask)
 {
-   uint32_t i;
+   uint i;
    const char *sname = tgsi_proc_to_prefix(ctx->prog_type);
    int glsl_ver_required = ctx->glsl_ver_required;
 
@@ -6704,7 +6687,7 @@ static int emit_ios_common(const struct dump_ctx *ctx,
          emit_sampler_decl(ctx, glsl_strbufs, shadow_samp_mask, first, range, ctx->samplers + first);
       }
    } else {
-      unsigned nsamp = util_last_bit(ctx->samplers_used);
+      uint nsamp = util_last_bit(ctx->samplers_used);
       for (i = 0; i < nsamp; i++) {
 
          if ((ctx->samplers_used & (1 << i)) == 0)
@@ -6768,7 +6751,7 @@ static void emit_ios_streamout(const struct dump_ctx *ctx,
 {
    if (ctx->so) {
       char outtype[6] = "";
-      for (uint32_t i = 0; i < ctx->so->num_outputs; i++) {
+      for (uint i = 0; i < ctx->so->num_outputs; i++) {
          if (!ctx->write_so_outputs[i])
             continue;
          if (ctx->so->output[i].num_components == 1)
@@ -7297,7 +7280,7 @@ static void emit_ios_fs(const struct dump_ctx *ctx,
             if (!prefix)
                prefix = "";
             auxprefix = get_aux_string(ctx->inputs[i].location);
-            *interp_input_mask |= UINT64_C(1) << i;
+            *interp_input_mask |= 1 << i;
          }
 
          char prefixes[64];
@@ -7488,7 +7471,7 @@ static void emit_ios_geom(const struct dump_ctx *ctx,
          if (ctx->outputs[i].name == TGSI_SEMANTIC_GENERIC ||
              ctx->outputs[i].name == TGSI_SEMANTIC_COLOR ||
              ctx->outputs[i].name == TGSI_SEMANTIC_BCOLOR) {
-            *interp_input_mask |= UINT64_C(1) << i;
+            *interp_input_mask |= 1 << i;
          }
 
          emit_hdrf(glsl_strbufs, "layout (stream = %d) %s%s%sout vec4 %s;\n", ctx->outputs[i].stream, prefix,
@@ -7762,7 +7745,7 @@ static int emit_ios(const struct dump_ctx *ctx,
    return glsl_ver_required;
 }
 
-static bool fill_fragment_interpolants(const struct dump_ctx *ctx, struct vrend_fs_shader_info *fs_info)
+static boolean fill_fragment_interpolants(const struct dump_ctx *ctx, struct vrend_fs_shader_info *fs_info)
 {
    uint32_t i, index = 0;
 
@@ -7779,7 +7762,7 @@ static bool fill_fragment_interpolants(const struct dump_ctx *ctx, struct vrend_
    return true;
 }
 
-static bool fill_interpolants(const struct dump_ctx *ctx, struct vrend_variable_shader_info *sinfo)
+static boolean fill_interpolants(const struct dump_ctx *ctx, struct vrend_variable_shader_info *sinfo)
 {
    if (!ctx->interp_input_mask)
       return true;
@@ -7789,7 +7772,7 @@ static bool fill_interpolants(const struct dump_ctx *ctx, struct vrend_variable_
    return fill_fragment_interpolants(ctx, &sinfo->fs_info);
 }
 
-static bool analyze_instruction(struct tgsi_iterate_context *iter,
+static boolean analyze_instruction(struct tgsi_iterate_context *iter,
                                    struct tgsi_full_instruction *inst)
 {
    struct dump_ctx *ctx = (struct dump_ctx *)iter;
@@ -7806,7 +7789,7 @@ static bool analyze_instruction(struct tgsi_iterate_context *iter,
       for (int i = 0; i < inst->Instruction.NumSrcRegs; ++i) {
          if (inst->Src[i].Register.File == TGSI_FILE_INPUT) {
             int idx = inst->Src[i].Register.Index;
-            for (uint32_t j = 0; j < ctx->num_inputs; ++j) {
+            for (unsigned j = 0; j < ctx->num_inputs; ++j) {
                if (ctx->inputs[j].first <= idx && ctx->inputs[j].last >= idx &&
                    ctx->inputs[j].name == TGSI_SEMANTIC_CLIPDIST) {
                   ctx->fs_uses_clipdist_input = true;
@@ -7849,7 +7832,7 @@ static void fill_sinfo(const struct dump_ctx *ctx, struct vrend_shader_info *sin
    sinfo->fog_input_mask = ctx->fog_input_mask;
    sinfo->fog_output_mask = ctx->fog_output_mask;
 
-   sinfo->ssbo_used_mask = ctx->ssbo_used_mask >> (ctx->ssbo_first_binding != UINT32_MAX ? ctx->ssbo_first_binding : 0);
+   sinfo->ssbo_used_mask = ctx->ssbo_used_mask >> ctx->ssbo_first_binding;
    sinfo->ssbo_binding_offset  = ctx->key->ssbo_binding_offset;
 
    sinfo->ssbo_last_binding = ctx->key->ssbo_binding_offset + ctx->ssbo_last_binding -
@@ -7876,7 +7859,7 @@ static void fill_sinfo(const struct dump_ctx *ctx, struct vrend_shader_info *sin
 
    if (sinfo->so_names || ctx->so_names) {
       if (sinfo->so_names) {
-         for (uint32_t i = 0; i < sinfo->so_info.num_outputs; ++i)
+         for (unsigned i = 0; i < sinfo->so_info.num_outputs; ++i)
             free(sinfo->so_names[i]);
          free(sinfo->so_names);
       }
@@ -7886,7 +7869,7 @@ static void fill_sinfo(const struct dump_ctx *ctx, struct vrend_shader_info *sin
     * to the next shader stage. mesa/tgsi doesn't provide this information for
     * TCS, TES, and GEOM shaders.
     */
-   for(uint32_t i = 0; i < ctx->num_outputs; i++) {
+   for(unsigned i = 0; i < ctx->num_outputs; i++) {
       if (ctx->prog_type == TGSI_PROCESSOR_FRAGMENT) {
          if (ctx->outputs[i].name == TGSI_SEMANTIC_COLOR)
             sinfo->fs_output_layout[i] = ctx->outputs[i].sid;
@@ -7908,7 +7891,7 @@ static void fill_sinfo(const struct dump_ctx *ctx, struct vrend_shader_info *sin
    sinfo->in_generic_emitted_mask = ctx->generic_ios.match.inputs_emitted_mask;
    sinfo->in_texcoord_emitted_mask = ctx->texcoord_ios.match.inputs_emitted_mask;
 
-   for (uint32_t i = 0; i < ctx->num_outputs; ++i) {
+   for (unsigned i = 0; i < ctx->num_outputs; ++i) {
       if (ctx->outputs[i].invariant) {
          uint32_t bit_pos = varying_bit_from_semantic_and_index(ctx->outputs[i].name, ctx->outputs[i].sid);
          uint32_t slot = bit_pos / 32;
@@ -7920,7 +7903,7 @@ static void fill_sinfo(const struct dump_ctx *ctx, struct vrend_shader_info *sin
 
    if (ctx->guest_sent_io_arrays) {
       sinfo->output_arrays.num_arrays = 0;
-      for (uint32_t i = 0; i < ctx->num_outputs; ++i) {
+      for (unsigned i = 0; i < ctx->num_outputs; ++i) {
          const struct vrend_shader_io *io = &ctx->outputs[i];
          if (io->array_id  > 0) {
             struct vrend_shader_io_array *array =
@@ -7998,7 +7981,7 @@ struct sso_scan_ctx {
    bool unsupported_io;
 };
 
-static bool
+static boolean
 iter_prop_for_separable(struct tgsi_iterate_context *iter,
           struct tgsi_full_property *prop)
 {
@@ -8009,7 +7992,7 @@ iter_prop_for_separable(struct tgsi_iterate_context *iter,
    return true;
 }
 
-static bool
+static boolean
 iter_decl_for_overlap(struct tgsi_iterate_context *iter,
                       struct tgsi_full_declaration *decl)
 {
@@ -8093,7 +8076,7 @@ bool vrend_convert_shader(const struct vrend_context *rctx,
                           struct vrend_strarray *shader)
 {
    struct dump_ctx ctx;
-   bool bret;
+   boolean bret;
 
    memset(&ctx, 0, sizeof(struct dump_ctx));
    ctx.cfg = cfg;
@@ -8257,7 +8240,7 @@ bool vrend_convert_shader(const struct vrend_context *rctx,
    return false;
 }
 
-static bool
+static boolean
 iter_vs_declaration(struct tgsi_iterate_context *iter,
                     struct tgsi_full_declaration *decl)
 {
@@ -8266,7 +8249,7 @@ iter_vs_declaration(struct tgsi_iterate_context *iter,
    const char *shader_in_prefix = "vso";
    const char *shader_out_prefix = "tco";
    const char *name_prefix = "";
-   uint32_t i;
+   unsigned i;
 
    // Generate a shader that passes through all VS outputs
    if (decl->Declaration.File == TGSI_FILE_OUTPUT) {
@@ -8370,7 +8353,7 @@ bool vrend_shader_create_passthrough_tcs(const struct vrend_context *rctx,
                                          const float tess_factors[6],
                                          struct vrend_shader_info *sinfo,
                                          struct vrend_strarray *shader,
-                                         uint8_t vertices_per_patch)
+                                         int vertices_per_patch)
 {
    struct dump_ctx ctx;
 
@@ -8406,7 +8389,7 @@ bool vrend_shader_create_passthrough_tcs(const struct vrend_context *rctx,
 
    emit_buf(&ctx.glsl_strbufs, "void main() {\n");
 
-   for (uint32_t i = 0; i < ctx.num_inputs; ++i) {
+   for (unsigned int i = 0; i < ctx.num_inputs; ++i) {
       const char *out_prefix = "";
       const char *in_prefix = "";
 

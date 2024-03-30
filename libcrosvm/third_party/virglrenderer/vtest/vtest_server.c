@@ -40,13 +40,12 @@
 #include <string.h>
 
 #include "util.h"
-#include "util/list.h"
+#include "util/u_double_list.h"
 #include "util/u_math.h"
 #include "util/u_memory.h"
 #include "vtest.h"
 #include "vtest_protocol.h"
 #include "virglrenderer.h"
-#include "vtest_server.h"
 #ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
 #endif
@@ -131,7 +130,7 @@ static void vtest_server_close_socket(void);
 static int vtest_client_dispatch_commands(struct vtest_client *client);
 
 
-int vtest_main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 #ifdef __AFL_LOOP
 while (__AFL_LOOP(1000)) {
@@ -158,8 +157,6 @@ while (__AFL_LOOP(1000)) {
    }
 }
 #endif
-
-   return 0;
 }
 
 #define OPT_NO_FORK 'f'
@@ -196,12 +193,6 @@ static void vtest_server_parse_args(int argc, char **argv)
 
    /* getopt_long stores the option index here. */
    int option_index = 0;
-
-#ifdef ENABLE_VENUS
-   char* ven = " [--venus]";
-#else
-   char* ven = "";
-#endif
 
    do {
       ret = getopt_long(argc, argv, "", long_options, &option_index);
@@ -250,8 +241,10 @@ static void vtest_server_parse_args(int argc, char **argv)
          printf("Usage: %s [--no-fork] [--no-loop-or-fork] [--multi-clients] "
                 "[--use-glx] [--use-egl-surfaceless] [--use-gles] [--no-virgl]"
                 "[--rendernode <dev>] [--socket-path <path>] "
-                "%s"
-                " [file]\n", argv[0], ven);
+#ifdef ENABLE_VENUS
+                " [--venus]"
+#endif
+                " [file]\n", argv[0]);
          exit(EXIT_FAILURE);
          break;
       }
@@ -449,7 +442,7 @@ static void vtest_server_wait_clients(void)
    }
 
    if (max_fd < 0) {
-      if (!list_is_empty(&server.new_clients)) {
+      if (!LIST_IS_EMPTY(&server.new_clients)) {
          return;
       }
 
@@ -629,7 +622,7 @@ static void vtest_server_run(void)
    }
 
    while (run) {
-      const bool was_empty = list_is_empty(&server.active_clients);
+      const bool was_empty = LIST_IS_EMPTY(&server.active_clients);
       bool is_empty;
 
       vtest_server_wait_clients();
@@ -642,7 +635,7 @@ static void vtest_server_run(void)
       }
 
       /* init renderer after the first active client is added */
-      is_empty = list_is_empty(&server.active_clients);
+      is_empty = LIST_IS_EMPTY(&server.active_clients);
       if (was_empty && !is_empty) {
          int ret = vtest_init_renderer(server.multi_clients,
                                        server.ctx_flags,

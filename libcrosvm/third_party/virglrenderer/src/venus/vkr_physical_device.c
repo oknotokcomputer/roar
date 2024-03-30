@@ -57,11 +57,11 @@ void
 vkr_physical_device_destroy(struct vkr_context *ctx,
                             struct vkr_physical_device *physical_dev)
 {
-   list_for_each_entry_safe (struct vkr_device, dev, &physical_dev->devices, base.track_head)
-      vkr_device_destroy(ctx, dev, false);
+   struct vkr_device *dev, *tmp;
+   LIST_FOR_EACH_ENTRY_SAFE (dev, tmp, &physical_dev->devices, base.track_head)
+      vkr_device_destroy(ctx, dev);
 
    free(physical_dev->extensions);
-   free(physical_dev->queue_family_properties);
 
    vkr_context_remove_object(ctx, &physical_dev->base);
 }
@@ -276,25 +276,6 @@ vkr_physical_device_init_proc_table(struct vkr_physical_device *physical_dev,
 }
 
 static void
-vkr_physical_device_init_queue_family_properties(struct vkr_physical_device *physical_dev)
-{
-   VkPhysicalDevice handle = physical_dev->base.handle.physical_device;
-
-   VkQueueFamilyProperties *props;
-   uint32_t count;
-   vkGetPhysicalDeviceQueueFamilyProperties(handle, &count, NULL);
-
-   props = malloc(sizeof(*props) * count);
-   if (!props)
-      return;
-
-   vkGetPhysicalDeviceQueueFamilyProperties(handle, &count, props);
-
-   physical_dev->queue_family_property_count = count;
-   physical_dev->queue_family_properties = props;
-}
-
-static void
 vkr_dispatch_vkEnumeratePhysicalDevices(struct vn_dispatch_context *dispatch,
                                         struct vn_command_vkEnumeratePhysicalDevices *args)
 {
@@ -358,7 +339,6 @@ vkr_dispatch_vkEnumeratePhysicalDevices(struct vn_dispatch_context *dispatch,
       vkr_physical_device_init_extensions(physical_dev, instance);
       vkr_physical_device_init_memory_properties(physical_dev);
       vkr_physical_device_init_id_properties(physical_dev);
-      vkr_physical_device_init_queue_family_properties(physical_dev);
 
       list_inithead(&physical_dev->devices);
 
@@ -373,7 +353,6 @@ vkr_dispatch_vkEnumeratePhysicalDevices(struct vn_dispatch_context *dispatch,
          if (!physical_dev)
             break;
          free(physical_dev->extensions);
-         free(physical_dev->queue_family_properties);
          vkr_context_remove_object(ctx, &physical_dev->base);
          instance->physical_devices[i] = NULL;
       }
@@ -681,20 +660,6 @@ vkr_dispatch_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT(
       args->physicalDevice, args->pTimeDomainCount, args->pTimeDomains);
 }
 
-static void
-vkr_dispatch_vkGetPhysicalDeviceFragmentShadingRatesKHR(
-   UNUSED struct vn_dispatch_context *ctx,
-   struct vn_command_vkGetPhysicalDeviceFragmentShadingRatesKHR *args)
-{
-   struct vkr_physical_device *physical_dev =
-      vkr_physical_device_from_handle(args->physicalDevice);
-   struct vn_physical_device_proc_table *vk = &physical_dev->proc_table;
-
-   vn_replace_vkGetPhysicalDeviceFragmentShadingRatesKHR_args_handle(args);
-   args->ret = vk->GetPhysicalDeviceFragmentShadingRatesKHR(
-      args->physicalDevice, args->pFragmentShadingRateCount, args->pFragmentShadingRates);
-}
-
 void
 vkr_context_init_physical_device_dispatch(struct vkr_context *ctx)
 {
@@ -746,8 +711,4 @@ vkr_context_init_physical_device_dispatch(struct vkr_context *ctx)
       vkr_dispatch_vkGetPhysicalDeviceExternalFenceProperties;
    dispatch->dispatch_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT =
       vkr_dispatch_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT;
-
-   /* VK_KHR_fragment_shading_rate */
-   dispatch->dispatch_vkGetPhysicalDeviceFragmentShadingRatesKHR =
-      vkr_dispatch_vkGetPhysicalDeviceFragmentShadingRatesKHR;
 }

@@ -125,7 +125,9 @@ static struct vrend_video_codec *get_video_codec(
                                         struct vrend_video_context *ctx,
                                         uint32_t cdc_handle)
 {
-    list_for_each_entry(struct vrend_video_codec, cdc, &ctx->codecs, head) {
+    struct vrend_video_codec *cdc;
+
+    LIST_FOR_EACH_ENTRY(cdc, &ctx->codecs, head) {
         if (cdc->handle == cdc_handle)
             return cdc;
     }
@@ -137,7 +139,9 @@ static struct vrend_video_buffer *get_video_buffer(
                                         struct vrend_video_context *ctx,
                                         uint32_t buf_handle)
 {
-    list_for_each_entry(struct vrend_video_buffer, buf, &ctx->buffers, head) {
+    struct vrend_video_buffer *buf;
+
+    LIST_FOR_EACH_ENTRY(buf, &ctx->buffers, head) {
         if (buf->handle == buf_handle)
             return buf;
     }
@@ -196,7 +200,7 @@ static int sync_dmabuf_to_video_buffer(struct vrend_video_buffer *buf,
                                GL_TEXTURE_2D, plane->texture, 0);
 
         /* framebuffer -> vrend_video_buffer.planes[i] */
-        glBindTexture(GL_TEXTURE_2D, res->gl_id);
+        glBindTexture(GL_TEXTURE_2D, res->id);
         glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0,
                             res->base.width0, res->base.height0);
     }
@@ -254,7 +258,7 @@ static int sync_video_buffer_to_dmabuf(struct vrend_video_buffer *buf,
         /* vrend_video_buffer.planes[i] -> framebuffer */
         glBindFramebuffer(GL_READ_FRAMEBUFFER, plane->framebuffer);
         glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                               GL_TEXTURE_2D, res->gl_id, 0);
+                               GL_TEXTURE_2D, res->id, 0);
 
         /* framebuffer -> texture */
         glBindTexture(GL_TEXTURE_2D, plane->texture);
@@ -316,7 +320,7 @@ static void vrend_video_encode_completed(
 
     /* sync coded data to guest */
     if (has_bit(cdc->dest_res->storage_bits, VREND_STORAGE_GL_BUFFER)) {
-        glBindBufferARB(cdc->dest_res->target, cdc->dest_res->gl_id);
+        glBindBufferARB(cdc->dest_res->target, cdc->dest_res->id);
         buf = glMapBufferRange(cdc->dest_res->target, 0,
                                cdc->dest_res->base.width0, GL_MAP_WRITE_BIT);
         for (i = 0, data_size = 0; i < num_coded_bufs &&
@@ -559,10 +563,13 @@ struct vrend_video_context *vrend_video_create_context(struct vrend_context *ctx
 
 void vrend_video_destroy_context(struct vrend_video_context *ctx)
 {
-   list_for_each_entry_safe(struct vrend_video_codec, vcdc, &ctx->codecs, head)
+   struct vrend_video_codec *vcdc, *vcdc_tmp;
+   struct vrend_video_buffer *vbuf, *vbuf_tmp;
+
+   LIST_FOR_EACH_ENTRY_SAFE(vcdc, vcdc_tmp, &ctx->codecs, head)
       destroy_video_codec(vcdc);
 
-   list_for_each_entry_safe(struct vrend_video_buffer, vbuf, &ctx->buffers, head)
+   LIST_FOR_EACH_ENTRY_SAFE(vbuf, vbuf_tmp, &ctx->buffers, head)
       destroy_video_buffer(vbuf);
 
    free(ctx);

@@ -318,7 +318,6 @@ section below for the full list of supported values for \fIprofile\fR.
 \fB--preload-library <file path>\fR
 Allows overriding the default path of \fI/lib/libminijailpreload.so\fR.  This
 is only really useful for testing.
-.TP
 \fB--seccomp-bpf-binary <arch-specific BPF binary>\fR
 This is similar to \fB-S\fR, but
 instead of using a policy file, \fB--secomp-bpf-binary\fR expects a
@@ -379,14 +378,6 @@ Disables path-based filesystem restrictions.
 Disables default seccomp policy and setting of no_new_privs. The default
 runtime environment is used by Minijail if no other seccomp policy is set,
 unless this flag is set to opt out.
-.TP
-\fB--no-new-sessions\fR
-Skips having Minijail call setsid(). This is useful when running a process that
-expects to have a controlling terminal set.
-.TP
-\fB--preserve-fd\fR
-Preserves an fd and makes it available in the child process. The fd is
-preserved with the same integer value.
 .TP
 \fB--config <file path>\fR
 Use a Minijail configuration file to set options, through

@@ -65,7 +65,7 @@ owners::
   interactively find the owners for reviewing
 
 patch::
-  applies (cherry-picks) a Gerrit changelist locally
+  patches in a code review
 
 presubmit::
   runs presubmit tests on the current changelist

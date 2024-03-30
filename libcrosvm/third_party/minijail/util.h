@@ -53,7 +53,7 @@ extern "C" {
  *   foo([1] int, [2] const char *format, [3] ...): format=2 check=3
  *   foo([1] const char *format, [2] const char *, [3] ...): format=1 check=3
  */
-#define attribute_printf(format_idx, check_idx)                                \
+#define attribute_printf(format_idx, check_idx) \
 	__attribute__((__format__(__printf__, format_idx, check_idx)))
 
 #ifndef __cplusplus
@@ -65,7 +65,8 @@ extern "C" {
  * Make sure any variable using this is always initialized to something.
  * @func The function to call on (a pointer to) the variable.
  */
-#define attribute_cleanup(func) __attribute__((__cleanup__(func)))
+#define attribute_cleanup(func) \
+	__attribute__((__cleanup__(func)))
 
 /*
  * Automatically close a FILE* when exiting its scope.
@@ -244,7 +245,7 @@ static inline size_t get_num_syscalls(void)
 }
 
 int lookup_syscall(const char *name, size_t *ind);
-const char *lookup_syscall_name(long nr);
+const char *lookup_syscall_name(int nr);
 
 long int parse_single_constant(char *constant_str, char **endptr);
 long int parse_constant(char *constant_str, char **endptr);

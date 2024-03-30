@@ -20,7 +20,7 @@ struct vkr_renderer_state {
 struct vkr_renderer_state vkr_state;
 
 size_t
-vkr_get_capset(void *capset, uint32_t flags)
+vkr_get_capset(void *capset)
 {
    struct virgl_renderer_capset_venus *c = capset;
    if (c) {
@@ -49,8 +49,6 @@ vkr_get_capset(void *capset, uint32_t flags)
 
       c->allow_vk_wait_syncs = 1;
       c->supports_multiple_timelines = 1;
-
-      c->use_guest_vram = (bool)(flags & VIRGL_RENDERER_USE_GUEST_VRAM);
    }
 
    return sizeof(*c);
@@ -79,7 +77,8 @@ vkr_renderer_init(uint32_t flags, const struct vkr_renderer_callbacks *cbs)
 void
 vkr_renderer_fini(void)
 {
-   list_for_each_entry_safe (struct vkr_context, ctx, &vkr_state.contexts, head)
+   struct vkr_context *ctx, *tmp;
+   LIST_FOR_EACH_ENTRY_SAFE (ctx, tmp, &vkr_state.contexts, head)
       vkr_context_destroy(ctx);
 
    list_inithead(&vkr_state.contexts);

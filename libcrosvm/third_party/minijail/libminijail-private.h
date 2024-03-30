@@ -10,8 +10,6 @@
 #ifndef LIBMINIJAIL_PRIVATE_H
 #define LIBMINIJAIL_PRIVATE_H
 
-#include <sys/types.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -24,8 +22,6 @@ extern "C" {
 static const char kFdEnvVar[] = "__MINIJAIL_FD";
 static const char kLdPreloadEnvVar[] = "LD_PRELOAD";
 static const char kSeccompPolicyPathEnvVar[] = "SECCOMP_POLICY_PATH";
-static const char kAltSyscallNamePlaceholder[] =
-    "<unknown: alt_syscall active>";
 
 struct minijail;
 
@@ -88,10 +84,6 @@ extern void minijail_preexec(struct minijail *j);
  * @j jail to strip
  */
 extern void minijail_preenter(struct minijail *j);
-
-/* minijail_fd_is_open: returns true if the specified file descriptor is open.
- */
-extern int minijail_fd_is_open(int fd);
 
 #ifdef __cplusplus
 }; /* extern "C" */

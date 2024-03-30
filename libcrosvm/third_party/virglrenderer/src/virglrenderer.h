@@ -31,8 +31,6 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
-#include "virgl-version.h"
-
 struct virgl_box;
 struct iovec;
 
@@ -166,9 +164,6 @@ struct virgl_renderer_callbacks {
 #define VIRGL_RENDERER_D3D11_SHARE_TEXTURE (1 << 12)
 #define VIRGL_RENDERER_COMPAT_PROFILE (1 << 13)
 
-/* Blob allocations must be done by guest from dedicated heap (Host visible memory). */
-#define VIRGL_RENDERER_USE_GUEST_VRAM (1 << 14)
-
 VIRGL_EXPORT int virgl_renderer_init(void *cookie, int flags, struct virgl_renderer_callbacks *cb);
 VIRGL_EXPORT void virgl_renderer_poll(void); /* force fences */
 
@@ -264,10 +259,6 @@ enum virgl_log_level_flags {
    VIRGL_LOG_LEVEL_INFO,
    VIRGL_LOG_LEVEL_WARNING,
    VIRGL_LOG_LEVEL_ERROR,
-
-   /* "SILENT" must be enum with the highest absolute value and it should not
-    * be used as actual log level in calls to virgl_logv and siblings .*/
-   VIRGL_LOG_LEVEL_SILENT,
 };
 
 typedef void (*virgl_free_data_callback_type)(void* user_data);
@@ -441,9 +432,6 @@ VIRGL_EXPORT int virgl_renderer_context_create_fence(uint32_t ctx_id,
                                                      uint32_t ring_idx,
                                                      uint64_t fence_id);
 
-VIRGL_EXPORT void virgl_renderer_context_poll(uint32_t ctx_id); /* force fences */
-VIRGL_EXPORT int virgl_renderer_context_get_poll_fd(uint32_t ctx_id);
-
 /*
  * These are unstable APIs for development only. Use these for development/testing purposes
  * only, not in production
@@ -455,6 +443,9 @@ virgl_renderer_export_fence(uint64_t client_fence_id, int *fd);
 
 VIRGL_EXPORT int
 virgl_renderer_export_signalled_fence(void);
+
+VIRGL_EXPORT void virgl_renderer_context_poll(uint32_t ctx_id); /* force fences */
+VIRGL_EXPORT int virgl_renderer_context_get_poll_fd(uint32_t ctx_id);
 
 VIRGL_EXPORT int
 virgl_renderer_submit_cmd2(void *buffer,

@@ -6,12 +6,11 @@ use std::ffi::CString;
 use std::fmt::{self, Display};
 use std::fs;
 use std::io;
-use std::os::raw::{c_char, c_int, c_ulong, c_ushort};
+use std::os::raw::{c_char, c_ulong, c_ushort};
 use std::os::unix::io::{AsRawFd, IntoRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::ptr::{null, null_mut};
 use std::result::Result as StdResult;
-use std::sync::Once;
 
 use libc::pid_t;
 use minijail_sys::*;
@@ -1053,20 +1052,6 @@ fn to_execve_cstring_array<S: AsRef<str>>(
     Ok((vec_cstr, vec_cptr))
 }
 
-static LOGGING_INIT_LOCK: Once = Once::new();
-
-pub fn init_default_logging() {
-    LOGGING_INIT_LOCK.call_once(|| {
-        log_to_fd(libc::STDERR_FILENO, 6 /* SYSLOG_LOG_INFO */)
-    })
-}
-
-fn log_to_fd(fd: RawFd, priority: c_int) {
-    unsafe {
-        minijail_log_to_fd(fd, priority);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1097,8 +1082,6 @@ mod tests {
 
     #[test]
     fn create_and_free() {
-        init_default_logging();
-
         unsafe {
             let j = minijail_new();
             assert_ne!(std::ptr::null_mut(), j);
@@ -1113,8 +1096,6 @@ mod tests {
     // Test that setting a seccomp filter with no-new-privs works as non-root.
     // This is equivalent to minijail0 -n -S <seccomp_policy>
     fn seccomp_no_new_privs() {
-        init_default_logging();
-
         let mut j = Minijail::new().unwrap();
         j.no_new_privs();
         j.parse_seccomp_filters("src/test_filter.policy").unwrap();
@@ -1125,8 +1106,6 @@ mod tests {
     #[test]
     // Test that open FDs get closed and that FDs in the inherit list are left open.
     fn close_fds() {
-        init_default_logging();
-
         unsafe {
             // Using libc to open/close FDs for testing.
             const FILE_PATH: &[u8] = b"/dev/null\0";
@@ -1172,8 +1151,6 @@ fi
 
     #[test]
     fn wait_success() {
-        init_default_logging();
-
         let j = Minijail::new().unwrap();
         j.run("/bin/true", &[1, 2], EMPTY_STRING_SLICE).unwrap();
         expect_result!(j.wait(), Ok(()));
@@ -1181,8 +1158,6 @@ fi
 
     #[test]
     fn wait_killed() {
-        init_default_logging();
-
         let j = Minijail::new().unwrap();
         j.run(
             SHELL,
@@ -1195,8 +1170,6 @@ fi
 
     #[test]
     fn wait_returncode() {
-        init_default_logging();
-
         let j = Minijail::new().unwrap();
         j.run("/bin/false", &[1, 2], EMPTY_STRING_SLICE).unwrap();
         expect_result!(j.wait(), Err(Error::ReturnCode(1)));
@@ -1204,8 +1177,6 @@ fi
 
     #[test]
     fn wait_noaccess() {
-        init_default_logging();
-
         let j = Minijail::new().unwrap();
         j.run("/dev/null", &[1, 2], EMPTY_STRING_SLICE).unwrap();
         expect_result!(j.wait(), Err(Error::NoAccess));
@@ -1213,8 +1184,6 @@ fi
 
     #[test]
     fn wait_nocommand() {
-        init_default_logging();
-
         let j = Minijail::new().unwrap();
         j.run("/bin/does not exist", &[1, 2], EMPTY_STRING_SLICE)
             .unwrap();
@@ -1226,10 +1195,7 @@ fi
     }
 
     #[test]
-    #[ignore] // TODO(b/323475944) Fix unit test failures.
     fn runnable_fd_success() {
-        init_default_logging();
-
         let bin_file = File::open("/bin/true").unwrap();
         // On ChromeOS targets /bin/true is actually a script, so drop CLOEXEC to prevent ENOENT.
         clear_cloexec(&bin_file).unwrap();
@@ -1241,8 +1207,6 @@ fi
 
     #[test]
     fn kill_success() {
-        init_default_logging();
-
         let j = Minijail::new().unwrap();
         j.run(
             Path::new("/usr/bin/sleep"),
@@ -1257,8 +1221,6 @@ fi
     #[test]
     #[ignore] // privileged operation.
     fn chroot() {
-        init_default_logging();
-
         let mut j = Minijail::new().unwrap();
         j.enter_chroot(".").unwrap();
         j.run("/bin/true", &[], EMPTY_STRING_SLICE).unwrap();
@@ -1267,8 +1229,6 @@ fi
     #[test]
     #[ignore] // privileged operation.
     fn namespace_vfs() {
-        init_default_logging();
-
         let mut j = Minijail::new().unwrap();
         j.namespace_vfs();
         j.run("/bin/true", &[], EMPTY_STRING_SLICE).unwrap();
@@ -1276,16 +1236,12 @@ fi
 
     #[test]
     fn run() {
-        init_default_logging();
-
         let j = Minijail::new().unwrap();
         j.run("/bin/true", &[], EMPTY_STRING_SLICE).unwrap();
     }
 
     #[test]
     fn run_clone() {
-        init_default_logging();
-
         let j = Minijail::new().unwrap();
         let b = j.try_clone().unwrap();
         // Pass the same FDs to both clones and make sure they don't conflict.
@@ -1295,8 +1251,6 @@ fi
 
     #[test]
     fn run_string_vec() {
-        init_default_logging();
-
         let j = Minijail::new().unwrap();
         let args = vec!["ignored".to_string()];
         j.run(Path::new("/bin/true"), &[], &args).unwrap();

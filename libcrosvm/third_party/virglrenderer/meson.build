@@ -23,7 +23,7 @@
 
 project(
    'virglrenderer', 'c',
-   version: '1.0.1',
+   version: '1.0.0',
    license : 'MIT',
    meson_version : '>= 0.55',
    default_options : ['buildtype=release', 'b_ndebug=if-release',
@@ -39,13 +39,7 @@ project(
 #    and set revision and interface_age to zero
 binary_age    = 1
 interface_age = 8
-revision      = 9
-
-virgl_version = meson.project_version()
-version_array = virgl_version.split('.')
-virgl_major_version = version_array[0].to_int()
-virgl_minor_version = version_array[1].to_int()
-virgl_micro_version = version_array[2].to_int()
+revision      = 8
 
 cc = meson.get_compiler('c')
 
@@ -86,13 +80,8 @@ m_dep = cc.find_library('m', required : false)
 conf_data = configuration_data()
 conf_data.set('VERSION', meson.project_version())
 conf_data.set('_GNU_SOURCE', 1)
-# Compile unstable APIs unconditionally to avoid building two variants of
-# the lib. It's up to virglrenderer users to decide whether to use these
-# APIs. Unstable APIs may be changed or removed without a notice.
 conf_data.set('VIRGL_RENDERER_UNSTABLE_APIS', 1)
 conf_data.set('ENABLE_DRM', libdrm_dep.found())
-
-pkg_cflags = []
 
 has_attribute_cleanup = cc.compiles('''
    void func(void *v) {}
@@ -244,7 +233,7 @@ if with_egl
          if libdrm_dep.found()
             gbm_dep = dependency('gbm', version: '>= ' + _gbm_ver, required: require_egl)
          endif
-         have_egl = gbm_dep.found() and cc.has_header('sys/mman.h', required: require_egl)
+         have_egl = gbm_dep.found()
          conf_data.set('ENABLE_GBM', have_egl)
       endif
       conf_data.set('HAVE_EPOXY_EGL_H', have_egl)
@@ -342,11 +331,6 @@ with_fuzzer = get_option('fuzzer')
 with_tests = get_option('tests')
 with_valgrind = get_option('valgrind')
 
-with_unstable_apis = get_option('unstable-apis')
-if with_unstable_apis
-  pkg_cflags += '-DVIRGL_RENDERER_UNSTABLE_APIS=1'
-endif
-
 subdir('src')
 if not with_host_windows
    subdir('vtest')
@@ -377,5 +361,4 @@ summary({'c_args': (' ').join(get_option('c_args')),
         'tests': with_tests,
         'fuzzer': with_fuzzer,
         'tracing': with_tracing,
-        'unstable-apis': with_unstable_apis,
         }, section: 'Configuration')

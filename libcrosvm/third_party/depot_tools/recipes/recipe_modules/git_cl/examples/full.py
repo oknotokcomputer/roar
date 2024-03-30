@@ -3,6 +3,11 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+from recipe_engine.config_types import Path
+
+
+PYTHON_VERSION_COMPATIBILITY = 'PY2+3'
+
 DEPS = [
   'git_cl',
   'recipe_engine/path',
@@ -21,7 +26,8 @@ def RunSteps(api):
       'bammmm', patch_url='https://code.review/123')
   api.step('echo', ['echo', result.stdout.decode('utf-8')])
 
-  api.git_cl.set_default_repo_location(api.path.mkdtemp('fakerepo'))
+  api.git_cl.set_config('basic')
+  api.git_cl.c.repo_location = api.path.mkdtemp('fakerepo')
 
   api.step(
       'echo', ['echo', api.git_cl.get_description().stdout.decode('utf-8')])
@@ -42,3 +48,4 @@ def GenTests(api):
           'git_cl description (2)', stdout=api.raw_io.output(
               'new description woo'))
   )
+

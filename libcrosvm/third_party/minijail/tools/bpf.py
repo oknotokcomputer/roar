@@ -1,13 +1,24 @@
-# Copyright 2020 The ChromiumOS Authors
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
-
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (C) 2018 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tools to interact with BPF programs."""
 
 import abc
 import collections
 import struct
-
 
 # This comes from syscall(2). Most architectures only support passing 6 args to
 # syscalls, but ARM supports passing 7.
@@ -36,7 +47,7 @@ BPF_ABS = 0x20
 BPF_IND = 0x40
 BPF_MEM = 0x60
 BPF_LEN = 0x80
-BPF_MSH = 0xA0
+BPF_MSH = 0xa0
 
 # JMP fields.
 BPF_JA = 0x00
@@ -57,13 +68,13 @@ SECCOMP_RET_KILL_PROCESS = 0x80000000
 SECCOMP_RET_KILL_THREAD = 0x00000000
 SECCOMP_RET_TRAP = 0x00030000
 SECCOMP_RET_ERRNO = 0x00050000
-SECCOMP_RET_TRACE = 0x7FF00000
-SECCOMP_RET_USER_NOTIF = 0x7FC00000
-SECCOMP_RET_LOG = 0x7FFC0000
-SECCOMP_RET_ALLOW = 0x7FFF0000
+SECCOMP_RET_TRACE = 0x7ff00000
+SECCOMP_RET_USER_NOTIF = 0x7fc00000
+SECCOMP_RET_LOG = 0x7ffc0000
+SECCOMP_RET_ALLOW = 0x7fff0000
 
-SECCOMP_RET_ACTION_FULL = 0xFFFF0000
-SECCOMP_RET_DATA = 0x0000FFFF
+SECCOMP_RET_ACTION_FULL = 0xffff0000
+SECCOMP_RET_DATA = 0x0000ffff
 
 
 def arg_offset(arg_index, hi=False):
@@ -75,12 +86,10 @@ def arg_offset(arg_index, hi=False):
 
 def simulate(instructions, arch, syscall_number, *args):
     """Simulate a BPF program with the given arguments."""
-    args = (args + (0,) * (MAX_SYSCALL_ARGUMENTS - len(args)))[
-        :MAX_SYSCALL_ARGUMENTS
-    ]
-    input_memory = struct.pack(
-        "IIQ" + "Q" * MAX_SYSCALL_ARGUMENTS, syscall_number, arch, 0, *args
-    )
+    args = ((args + (0, ) *
+             (MAX_SYSCALL_ARGUMENTS - len(args)))[:MAX_SYSCALL_ARGUMENTS])
+    input_memory = struct.pack('IIQ' + 'Q' * MAX_SYSCALL_ARGUMENTS,
+                               syscall_number, arch, 0, *args)
 
     register = 0
     program_counter = 0
@@ -90,7 +99,7 @@ def simulate(instructions, arch, syscall_number, *args):
         program_counter += 1
         cost += 1
         if ins.code == BPF_LD | BPF_W | BPF_ABS:
-            register = struct.unpack("I", input_memory[ins.k : ins.k + 4])[0]
+            register = struct.unpack('I', input_memory[ins.k:ins.k + 4])[0]
         elif ins.code == BPF_JMP | BPF_JA | BPF_K:
             program_counter += ins.k
         elif ins.code == BPF_JMP | BPF_JEQ | BPF_K:
@@ -115,41 +124,43 @@ def simulate(instructions, arch, syscall_number, *args):
                 program_counter += ins.jf
         elif ins.code == BPF_RET:
             if ins.k == SECCOMP_RET_KILL_PROCESS:
-                return (cost, "KILL_PROCESS")
+                return (cost, 'KILL_PROCESS')
             if ins.k == SECCOMP_RET_KILL_THREAD:
-                return (cost, "KILL_THREAD")
+                return (cost, 'KILL_THREAD')
             if ins.k == SECCOMP_RET_TRAP:
-                return (cost, "TRAP")
+                return (cost, 'TRAP')
             if (ins.k & SECCOMP_RET_ACTION_FULL) == SECCOMP_RET_ERRNO:
-                return (cost, "ERRNO", ins.k & SECCOMP_RET_DATA)
+                return (cost, 'ERRNO', ins.k & SECCOMP_RET_DATA)
             if ins.k == SECCOMP_RET_TRACE:
-                return (cost, "TRACE")
+                return (cost, 'TRACE')
             if ins.k == SECCOMP_RET_USER_NOTIF:
-                return (cost, "USER_NOTIF")
+                return (cost, 'USER_NOTIF')
             if ins.k == SECCOMP_RET_LOG:
-                return (cost, "LOG")
+                return (cost, 'LOG')
             if ins.k == SECCOMP_RET_ALLOW:
-                return (cost, "ALLOW")
-            raise Exception("unknown return %#x" % ins.k)
+                return (cost, 'ALLOW')
+            raise Exception('unknown return %#x' % ins.k)
         else:
-            raise Exception("unknown instruction %r" % (ins,))
-    raise Exception("out-of-bounds")
+            raise Exception('unknown instruction %r' % (ins, ))
+    raise Exception('out-of-bounds')
 
 
 class SockFilter(
-    collections.namedtuple("SockFilter", ["code", "jt", "jf", "k"])
-):
+        collections.namedtuple('SockFilter', ['code', 'jt', 'jf', 'k'])):
     """A representation of struct sock_filter."""
 
     __slots__ = ()
 
     def encode(self):
         """Return an encoded version of the SockFilter."""
-        return struct.pack("HBBI", self.code, self.jt, self.jf, self.k)
+        return struct.pack('HBBI', self.code, self.jt, self.jf, self.k)
 
 
 class AbstractBlock(abc.ABC):
     """A class that implements the visitor pattern."""
+
+    def __init__(self):
+        super().__init__()
 
     @abc.abstractmethod
     def accept(self, visitor):
@@ -174,7 +185,7 @@ class BasicBlock(AbstractBlock):
 
     @property
     def opcodes(self):
-        return b"".join(i.encode() for i in self._instructions)
+        return b''.join(i.encode() for i in self._instructions)
 
     def __eq__(self, o):
         if not isinstance(o, BasicBlock):
@@ -187,8 +198,7 @@ class KillProcess(BasicBlock):
 
     def __init__(self):
         super().__init__(
-            [SockFilter(BPF_RET, 0x00, 0x00, SECCOMP_RET_KILL_PROCESS)]
-        )
+            [SockFilter(BPF_RET, 0x00, 0x00, SECCOMP_RET_KILL_PROCESS)])
 
 
 class KillThread(BasicBlock):
@@ -196,8 +206,7 @@ class KillThread(BasicBlock):
 
     def __init__(self):
         super().__init__(
-            [SockFilter(BPF_RET, 0x00, 0x00, SECCOMP_RET_KILL_THREAD)]
-        )
+            [SockFilter(BPF_RET, 0x00, 0x00, SECCOMP_RET_KILL_THREAD)])
 
 
 class Trap(BasicBlock):
@@ -218,9 +227,7 @@ class UserNotify(BasicBlock):
     """A BasicBlock that unconditionally returns USER_NOTIF."""
 
     def __init__(self):
-        super().__init__(
-            [SockFilter(BPF_RET, 0x00, 0x00, SECCOMP_RET_USER_NOTIF)]
-        )
+        super().__init__([SockFilter(BPF_RET, 0x00, 0x00, SECCOMP_RET_USER_NOTIF)])
 
 
 class Log(BasicBlock):
@@ -234,16 +241,10 @@ class ReturnErrno(BasicBlock):
     """A BasicBlock that unconditionally returns the specified errno."""
 
     def __init__(self, errno):
-        super().__init__(
-            [
-                SockFilter(
-                    BPF_RET,
-                    0x00,
-                    0x00,
-                    SECCOMP_RET_ERRNO | (errno & SECCOMP_RET_DATA),
-                )
-            ]
-        )
+        super().__init__([
+            SockFilter(BPF_RET, 0x00, 0x00,
+                       SECCOMP_RET_ERRNO | (errno & SECCOMP_RET_DATA))
+        ])
         self.errno = errno
 
 
@@ -305,9 +306,7 @@ class SyscallEntry(AbstractBlock):
 class WideAtom(AbstractBlock):
     """A BasicBlock that represents a 32-bit wide atom."""
 
-    def __init__(
-        self, arg_offset, op, value, jt, jf
-    ):  # pylint: disable=redefined-outer-name
+    def __init__(self, arg_offset, op, value, jt, jf):
         super().__init__()
         self.arg_offset = arg_offset
         self.op = op
@@ -328,24 +327,24 @@ class Atom(AbstractBlock):
 
     def __init__(self, arg_index, op, value, jt, jf):
         super().__init__()
-        if op == "==":
+        if op == '==':
             op = BPF_JEQ
-        elif op == "!=":
+        elif op == '!=':
             op = BPF_JEQ
             jt, jf = jf, jt
-        elif op == ">":
+        elif op == '>':
             op = BPF_JGT
-        elif op == "<=":
+        elif op == '<=':
             op = BPF_JGT
             jt, jf = jf, jt
-        elif op == ">=":
+        elif op == '>=':
             op = BPF_JGE
-        elif op == "<":
+        elif op == '<':
             op = BPF_JGE
             jt, jf = jf, jt
-        elif op == "&":
+        elif op == '&':
             op = BPF_JSET
-        elif op == "in":
+        elif op == 'in':
             op = BPF_JSET
             # The mask is negated, so the comparison will be true when the
             # argument includes a flag that wasn't listed in the original
@@ -354,7 +353,7 @@ class Atom(AbstractBlock):
             value = (~value) & ((1 << 64) - 1)
             jt, jf = jf, jt
         else:
-            raise Exception("Unknown operator %s" % op)
+            raise Exception('Unknown operator %s' % op)
 
         self.arg_index = arg_index
         self.op = op
@@ -414,7 +413,7 @@ class AbstractVisitor(abc.ABC):
         elif isinstance(block, Atom):
             self.visitAtom(block)
         else:
-            raise Exception("Unknown block type: %r" % block)
+            raise Exception('Unknown block type: %r' % block)
 
     @abc.abstractmethod
     def visitKillProcess(self, block):
@@ -520,8 +519,7 @@ class CopyingVisitor(AbstractVisitor):
     def visitValidateArch(self, block):
         assert id(block) not in self._mapping
         self._mapping[id(block)] = ValidateArch(
-            self._mapping[id(block.next_block)]
-        )
+            block.arch, self._mapping[id(block.next_block)])
 
     def visitSyscallEntry(self, block):
         assert id(block) not in self._mapping
@@ -529,28 +527,19 @@ class CopyingVisitor(AbstractVisitor):
             block.syscall_number,
             self._mapping[id(block.jt)],
             self._mapping[id(block.jf)],
-            op=block.op,
-        )
+            op=block.op)
 
     def visitWideAtom(self, block):
         assert id(block) not in self._mapping
         self._mapping[id(block)] = WideAtom(
-            block.arg_offset,
-            block.op,
-            block.value,
-            self._mapping[id(block.jt)],
-            self._mapping[id(block.jf)],
-        )
+            block.arg_offset, block.op, block.value, self._mapping[id(
+                block.jt)], self._mapping[id(block.jf)])
 
     def visitAtom(self, block):
         assert id(block) not in self._mapping
-        self._mapping[id(block)] = Atom(
-            block.arg_index,
-            block.op,
-            block.value,
-            self._mapping[id(block.jt)],
-            self._mapping[id(block.jf)],
-        )
+        self._mapping[id(block)] = Atom(block.arg_index, block.op, block.value,
+                                        self._mapping[id(block.jt)],
+                                        self._mapping[id(block.jf)])
 
 
 class LoweringVisitor(CopyingVisitor):
@@ -567,12 +556,8 @@ class LoweringVisitor(CopyingVisitor):
         hi = (block.value >> 32) & 0xFFFFFFFF
 
         lo_block = WideAtom(
-            arg_offset(block.arg_index, False),
-            block.op,
-            lo,
-            self._mapping[id(block.jt)],
-            self._mapping[id(block.jf)],
-        )
+            arg_offset(block.arg_index, False), block.op, lo,
+            self._mapping[id(block.jt)], self._mapping[id(block.jf)])
 
         if self._bits == 32:
             self._mapping[id(block)] = lo_block
@@ -586,27 +571,15 @@ class LoweringVisitor(CopyingVisitor):
                 # Special case: it's not needed to check whether |hi_1 == hi_2|,
                 # because it's true iff the JGT test fails.
                 self._mapping[id(block)] = WideAtom(
-                    arg_offset(block.arg_index, True),
-                    BPF_JGT,
-                    hi,
-                    self._mapping[id(block.jt)],
-                    lo_block,
-                )
+                    arg_offset(block.arg_index, True), BPF_JGT, hi,
+                    self._mapping[id(block.jt)], lo_block)
                 return
             hi_eq_block = WideAtom(
-                arg_offset(block.arg_index, True),
-                BPF_JEQ,
-                hi,
-                lo_block,
-                self._mapping[id(block.jf)],
-            )
+                arg_offset(block.arg_index, True), BPF_JEQ, hi, lo_block,
+                self._mapping[id(block.jf)])
             self._mapping[id(block)] = WideAtom(
-                arg_offset(block.arg_index, True),
-                BPF_JGT,
-                hi,
-                self._mapping[id(block.jt)],
-                hi_eq_block,
-            )
+                arg_offset(block.arg_index, True), BPF_JGT, hi,
+                self._mapping[id(block.jt)], hi_eq_block)
             return
         if block.op == BPF_JSET:
             # hi_1,lo_1 & hi_2,lo_2
@@ -618,12 +591,8 @@ class LoweringVisitor(CopyingVisitor):
                 self._mapping[id(block)] = lo_block
                 return
             self._mapping[id(block)] = WideAtom(
-                arg_offset(block.arg_index, True),
-                block.op,
-                hi,
-                self._mapping[id(block.jt)],
-                lo_block,
-            )
+                arg_offset(block.arg_index, True), block.op, hi,
+                self._mapping[id(block.jt)], lo_block)
             return
 
         assert block.op == BPF_JEQ, block.op
@@ -632,12 +601,8 @@ class LoweringVisitor(CopyingVisitor):
         #
         # hi_1 == hi_2 && lo_1 == lo_2
         self._mapping[id(block)] = WideAtom(
-            arg_offset(block.arg_index, True),
-            block.op,
-            hi,
-            lo_block,
-            self._mapping[id(block.jf)],
-        )
+            arg_offset(block.arg_index, True), block.op, hi, lo_block,
+            self._mapping[id(block.jf)])
 
 
 class FlatteningVisitor:
@@ -665,9 +630,8 @@ class FlatteningVisitor:
     def _emit_jmp(self, op, value, jt_distance, jf_distance):
         if jt_distance < 0x100 and jf_distance < 0x100:
             return [
-                SockFilter(
-                    BPF_JMP | op | BPF_K, jt_distance, jf_distance, value
-                ),
+                SockFilter(BPF_JMP | op | BPF_K, jt_distance, jf_distance,
+                           value),
             ]
         if jt_distance + 1 < 0x100:
             return [
@@ -697,42 +661,29 @@ class FlatteningVisitor:
         if isinstance(block, BasicBlock):
             instructions = block.instructions
         elif isinstance(block, ValidateArch):
-            instructions = (
-                [
-                    SockFilter(BPF_LD | BPF_W | BPF_ABS, 0, 0, 4),
-                    SockFilter(
-                        BPF_JMP | BPF_JEQ | BPF_K,
-                        self._distance(block.next_block) + 1,
-                        0,
-                        self._arch.arch_nr,
-                    ),
-                ]
-                + self._kill_action.instructions
-                + [
-                    SockFilter(BPF_LD | BPF_W | BPF_ABS, 0, 0, 0),
-                ]
-            )
+            instructions = [
+                SockFilter(BPF_LD | BPF_W | BPF_ABS, 0, 0, 4),
+                SockFilter(BPF_JMP | BPF_JEQ | BPF_K,
+                           self._distance(block.next_block) + 1, 0,
+                           self._arch.arch_nr),
+            ] + self._kill_action.instructions + [
+                SockFilter(BPF_LD | BPF_W | BPF_ABS, 0, 0, 0),
+            ]
         elif isinstance(block, SyscallEntry):
-            instructions = self._emit_jmp(
-                block.op,
-                block.syscall_number,
-                self._distance(block.jt),
-                self._distance(block.jf),
-            )
+            instructions = self._emit_jmp(block.op, block.syscall_number,
+                                          self._distance(block.jt),
+                                          self._distance(block.jf))
         elif isinstance(block, WideAtom):
-            instructions = self._emit_load_arg(
-                block.arg_offset
-            ) + self._emit_jmp(
-                block.op,
-                block.value,
-                self._distance(block.jt),
-                self._distance(block.jf),
-            )
+            instructions = (
+                self._emit_load_arg(block.arg_offset) + self._emit_jmp(
+                    block.op, block.value, self._distance(block.jt),
+                    self._distance(block.jf)))
         else:
-            raise Exception("Unknown block type: %r" % block)
+            raise Exception('Unknown block type: %r' % block)
 
         self._instructions = instructions + self._instructions
         self._offsets[id(block)] = -len(self._instructions)
+        return
 
 
 class ArgFilterForwardingVisitor:
@@ -754,18 +705,9 @@ class ArgFilterForwardingVisitor:
             return
         # But the ALLOW, KILL_PROCESS, TRAP, etc. actions are too and we don't
         # want to visit them just yet.
-        if isinstance(
-            block,
-            (
-                KillProcess,
-                KillThread,
-                Trap,
-                ReturnErrno,
-                Trace,
-                UserNotify,
-                Log,
-                Allow,
-            ),
-        ):
+        if (isinstance(block, KillProcess) or isinstance(block, KillThread)
+                or isinstance(block, Trap) or isinstance(block, ReturnErrno)
+                or isinstance(block, Trace) or isinstance(block, UserNotify)
+                or isinstance(block, Log) or isinstance(block, Allow)):
             return
         block.accept(self.visitor)

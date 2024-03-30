@@ -153,7 +153,7 @@ vkr_context_submit_cmd(struct vkr_context *ctx, const void *buffer, size_t size)
       return false;
    }
 
-   vkr_cs_decoder_set_buffer_stream(&ctx->decoder, buffer, size);
+   vkr_cs_decoder_set_stream(&ctx->decoder, buffer, size);
 
    while (vkr_cs_decoder_has_command(&ctx->decoder)) {
       vn_dispatch_command(&ctx->dispatch);
@@ -231,27 +231,6 @@ vkr_context_import_resource_internal(struct vkr_context *ctx,
 
    if (!vkr_context_add_resource(ctx, res)) {
       free(res);
-      return false;
-   }
-
-   return true;
-}
-
-static bool
-vkr_context_import_resource_from_shm(struct vkr_context *ctx,
-                                     uint32_t res_id,
-                                     uint64_t blob_size,
-                                     int fd)
-{
-   assert(!vkr_context_get_resource(ctx, res_id));
-
-   void *mmap_ptr = mmap(NULL, blob_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0);
-   if (mmap_ptr == MAP_FAILED)
-      return false;
-
-   if (!vkr_context_import_resource_internal(ctx, res_id, blob_size,
-                                             VIRGL_RESOURCE_FD_SHM, -1, mmap_ptr)) {
-      munmap(mmap_ptr, blob_size);
       return false;
    }
 
@@ -361,9 +340,6 @@ vkr_context_import_resource(struct vkr_context *ctx,
                             int fd,
                             uint64_t size)
 {
-   if (fd_type == VIRGL_RESOURCE_FD_SHM)
-      return vkr_context_import_resource_from_shm(ctx, res_id, size, fd);
-
    return vkr_context_import_resource_internal(ctx, res_id, size, fd_type, fd, NULL);
 }
 
@@ -377,10 +353,11 @@ vkr_context_destroy_resource(struct vkr_context *ctx, uint32_t res_id)
    vkr_cs_encoder_check_stream(&ctx->encoder, res);
 
    mtx_lock(&ctx->ring_mutex);
-   list_for_each_entry_safe (struct vkr_ring, ring, &ctx->rings, head) {
+   struct vkr_ring *ring, *ring_tmp;
+   LIST_FOR_EACH_ENTRY_SAFE (ring, ring_tmp, &ctx->rings, head) {
       vkr_cs_encoder_check_stream(&ring->encoder, res);
 
-      if (ring->resource != res && vkr_cs_decoder_check_stream(&ring->decoder, res))
+      if (ring->resource != res)
          continue;
 
       vkr_context_set_fatal(ctx);
@@ -574,7 +551,8 @@ vkr_context_destroy(struct vkr_context *ctx)
    /* TODO Move the entire teardown process to a separate thread so that the main thread
     * cannot get blocked by the vkDeviceWaitIdle upon device destruction.
     */
-   list_for_each_entry_safe (struct vkr_ring, ring, &ctx->rings, head) {
+   struct vkr_ring *ring, *ring_tmp;
+   LIST_FOR_EACH_ENTRY_SAFE (ring, ring_tmp, &ctx->rings, head) {
       vkr_ring_stop(ring);
       vkr_ring_destroy(ring);
    }
@@ -589,7 +567,7 @@ vkr_context_destroy(struct vkr_context *ctx)
       vkr_log("destroying context %d (%s) with a valid instance", ctx->ctx_id,
               vkr_context_get_name(ctx));
 
-      vkr_instance_destroy(ctx, ctx->instance, false);
+      vkr_instance_destroy(ctx, ctx->instance);
    }
 
    _mesa_hash_table_destroy(ctx->resource_table, vkr_context_free_resource);
@@ -653,12 +631,6 @@ vkr_context_create(uint32_t ctx_id,
    if (VKR_DEBUG(VALIDATE))
       ctx->validate_level = VKR_CONTEXT_VALIDATE_FULL;
 
-#ifdef ENABLE_RENDER_SERVER_WORKER_THREAD
-   ctx->on_worker_thread = true;
-#else
-   ctx->on_worker_thread = false;
-#endif
-
    if (!vkr_context_wait_ring_init(ctx))
       goto err_ctx_wait_ring_init;
 
@@ -677,9 +649,7 @@ vkr_context_create(uint32_t ctx_id,
    if (!ctx->resource_table)
       goto err_ctx_resource_table;
 
-   if (vkr_cs_decoder_init(&ctx->decoder, ctx))
-      goto err_cs_decoder_init;
-
+   vkr_cs_decoder_init(&ctx->decoder, &ctx->cs_fatal_error, ctx->object_table);
    if (vkr_cs_encoder_init(&ctx->encoder, &ctx->cs_fatal_error))
       goto err_cs_encoder_init;
 
@@ -695,8 +665,6 @@ vkr_context_create(uint32_t ctx_id,
 err_ctx_ring_mutex:
    vkr_cs_encoder_fini(&ctx->encoder);
 err_cs_encoder_init:
-   vkr_cs_decoder_fini(&ctx->decoder);
-err_cs_decoder_init:
    _mesa_hash_table_destroy(ctx->resource_table, vkr_context_free_resource);
 err_ctx_resource_table:
    mtx_destroy(&ctx->resource_mutex);

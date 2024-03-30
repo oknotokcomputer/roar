@@ -1,11 +1,6 @@
-#!/bin/bash
-# Copyright 2017 The ChromiumOS Authors
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
+#/bin/bash
 
-PV="1.14.0"
+PV="1.11.0"
 
-wget -q -nc --secure-protocol=TLSv1 \
-  "https://github.com/google/googletest/archive/v${PV}.tar.gz" \
-  -O "googletest-${PV}.tar.gz"
-tar zxvf "googletest-${PV}.tar.gz"
+wget -q -nc --secure-protocol=TLSv1 "https://github.com/google/googletest/archive/release-${PV}.tar.gz" -O "googletest-release-${PV}.tar.gz"
+tar zxvf "googletest-release-${PV}.tar.gz"

@@ -116,10 +116,8 @@ virgl_resource_create_from_pipe(uint32_t res_id,
    struct virgl_resource *res;
 
    res = virgl_resource_create(res_id);
-   if (!res) {
-      pipe_callbacks.unref(pres, pipe_callbacks.data);
+   if (!res)
       return NULL;
-   }
 
    /* take ownership */
    res->pipe_resource = pres;
@@ -143,10 +141,8 @@ virgl_resource_create_from_fd(uint32_t res_id,
    assert(fd_type != VIRGL_RESOURCE_FD_INVALID  && fd >= 0);
 
    res = virgl_resource_create(res_id);
-   if (!res) {
-      close(fd);
+   if (!res)
       return NULL;
-   }
 
    res->fd_type = fd_type;
    /* take ownership */

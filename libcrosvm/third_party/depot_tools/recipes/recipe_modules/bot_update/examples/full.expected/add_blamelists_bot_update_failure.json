@@ -15,8 +15,6 @@
       "--output_json",
       "/path/to/tmp/json",
       "--revision",
-      "infra@HEAD",
-      "--revision",
       "src@2d72510e447ab60a9728aeea2362d8be2cbd7789",
       "--revision",
       "src/v8@HEAD",
@@ -25,15 +23,8 @@
     ],
     "env": {
       "DEPOT_TOOLS_REPORT_BUILD": "chromium/src/ci/linux/8945511751514863184",
-      "GIT_BACKENDINFO": "1",
-      "GIT_DAPPER_TRACE": "1",
       "GIT_HTTP_LOW_SPEED_LIMIT": "102400",
-      "GIT_HTTP_LOW_SPEED_TIME": "1800",
-      "GIT_SSH_COMMAND": "ssh -o SendEnv=GIT_DAPPER_TRACE -o SendEnv=GIT_BACKENDINFO",
-      "GIT_TRACE2_EVENT": "[CLEANUP]/trace2-event",
-      "GIT_TRACE_CURL": "[CLEANUP]/trace-curl",
-      "GIT_TRACE_CURL_NO_DATA": "1",
-      "GIT_TRACE_PACKET": "[CLEANUP]/trace-packet"
+      "GIT_HTTP_LOW_SPEED_TIME": "1800"
     },
     "env_suffixes": {
       "DEPOT_TOOLS_UPDATE": [

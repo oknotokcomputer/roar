@@ -18,14 +18,16 @@ vkr_dispatch_vkSetReplyCommandStreamMESA(
 {
    struct vkr_context *ctx = dispatch->data;
    struct vkr_resource *res = vkr_context_get_resource(ctx, args->pStream->resourceId);
-   if (!res || res->fd_type != VIRGL_RESOURCE_FD_SHM) {
+   if (!res) {
       vkr_log("failed to set reply stream: invalid res_id %u", args->pStream->resourceId);
       vkr_context_set_fatal(ctx);
       return;
    }
 
    struct vkr_cs_encoder *enc = (struct vkr_cs_encoder *)dispatch->encoder;
+   mtx_lock(&enc->mutex);
    vkr_cs_encoder_set_stream(enc, res, args->pStream->offset, args->pStream->size);
+   mtx_unlock(&enc->mutex);
 }
 
 static void
@@ -42,7 +44,6 @@ vkr_dispatch_vkExecuteCommandStreamsMESA(
    struct vn_dispatch_context *dispatch,
    struct vn_command_vkExecuteCommandStreamsMESA *args)
 {
-   TRACE_FUNC();
    struct vkr_context *ctx = dispatch->data;
    struct vkr_cs_decoder *dec = (struct vkr_cs_decoder *)dispatch->decoder;
    struct vkr_cs_encoder *enc = (struct vkr_cs_encoder *)dispatch->encoder;
@@ -54,13 +55,11 @@ vkr_dispatch_vkExecuteCommandStreamsMESA(
    }
 
    /* note that nested vkExecuteCommandStreamsMESA is not allowed */
-   if (unlikely(vkr_cs_decoder_has_saved_state(dec))) {
+   if (unlikely(!vkr_cs_decoder_push_state(dec))) {
       vkr_log("failed to execute command streams: nested execution");
       vkr_context_set_fatal(ctx);
       return;
    }
-
-   vkr_cs_decoder_save_state(dec);
 
    for (uint32_t i = 0; i < args->streamCount; i++) {
       const VkCommandStreamDescriptionMESA *stream = &args->pStreams[i];
@@ -71,14 +70,23 @@ vkr_dispatch_vkExecuteCommandStreamsMESA(
       if (!stream->size)
          continue;
 
-      if (unlikely(!vkr_cs_decoder_set_resource_stream(dec, ctx, stream->resourceId,
-                                                       stream->offset, stream->size))) {
+      struct vkr_resource *res = vkr_context_get_resource(ctx, stream->resourceId);
+      if (!res) {
          vkr_log("failed to execute command streams: invalid stream %u res_id %u", i,
                  stream->resourceId);
          vkr_context_set_fatal(ctx);
          break;
       }
 
+      if (unlikely(stream->size > res->size ||
+                   stream->offset > res->size - stream->size)) {
+         vkr_log("failed to execute command streams: invalid stream %u res_id %u", i,
+                 stream->resourceId);
+         vkr_context_set_fatal(ctx);
+         break;
+      }
+
+      vkr_cs_decoder_set_stream(dec, res->u.data + stream->offset, stream->size);
       while (vkr_cs_decoder_has_command(dec)) {
          vn_dispatch_command(dispatch);
          if (vkr_context_get_fatal(ctx))
@@ -89,15 +97,15 @@ vkr_dispatch_vkExecuteCommandStreamsMESA(
          break;
    }
 
-   /* restore state unsets the last nested stream */
-   vkr_cs_decoder_restore_state(dec);
+   vkr_cs_decoder_pop_state(dec);
 }
 
 static struct vkr_ring *
 lookup_ring(struct vkr_context *ctx, uint64_t ring_id)
 {
+   struct vkr_ring *ring;
    mtx_lock(&ctx->ring_mutex);
-   list_for_each_entry (struct vkr_ring, ring, &ctx->rings, head) {
+   LIST_FOR_EACH_ENTRY (ring, &ctx->rings, head) {
       if (ring->id == ring_id) {
          mtx_unlock(&ctx->ring_mutex);
          return ring;
@@ -198,7 +206,7 @@ vkr_dispatch_vkCreateRingMESA(struct vn_dispatch_context *dispatch,
    }
 
    const struct vkr_resource *res = vkr_context_get_resource(ctx, info->resourceId);
-   if (!res || res->fd_type != VIRGL_RESOURCE_FD_SHM) {
+   if (!res) {
       vkr_context_set_fatal(ctx);
       return;
    }

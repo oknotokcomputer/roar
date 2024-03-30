@@ -5,7 +5,7 @@
 
 base_dir=$(dirname "$0")
 
-if [[ "#grep#fetch#cleanup#diff#help#getdep#root#setdep#recurse#--help#" != *"#$1#"* ]]; then
+if [[ "#grep#fetch#cleanup#diff#setdep#recurse#" != *"#$1#"* ]]; then
   # Shall skip authomatic update?
   if [[ $DEPOT_TOOLS_UPDATE != 0 ]]; then
     "$base_dir"/update_depot_tools "$@"
@@ -26,4 +26,13 @@ fi
 # standalone, but allow other PATH manipulations to take priority.
 PATH=$PATH:$base_dir
 
-PYTHONDONTWRITEBYTECODE=1 exec vpython3 "$base_dir/gclient.py" "$@"
+if [[ $GCLIENT_PY3 == 1 ]]; then
+  # Explicitly run on Python 3
+  PYTHONDONTWRITEBYTECODE=1 exec vpython3 "$base_dir/gclient.py" "$@"
+elif [[ $GCLIENT_PY3 == 0 ]]; then
+  # Explicitly run on Python 2
+  PYTHONDONTWRITEBYTECODE=1 exec vpython "$base_dir/gclient.py" "$@"
+else
+  # Run on Python 3, allows default to be flipped.
+  PYTHONDONTWRITEBYTECODE=1 exec vpython3 "$base_dir/gclient.py" "$@"
+fi

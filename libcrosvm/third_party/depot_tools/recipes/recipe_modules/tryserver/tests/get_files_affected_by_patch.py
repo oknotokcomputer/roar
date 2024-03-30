@@ -4,7 +4,7 @@
 
 from recipe_engine import post_process
 
-PYTHON_VERSION_COMPATIBILITY = 'PY3'
+PYTHON_VERSION_COMPATIBILITY = 'PY2+3'
 
 DEPS = [
     'tryserver',
@@ -73,7 +73,6 @@ def GenTests(api):
           ],
       ),
       api.post_check(post_process.StatusSuccess),
-      api.post_process(post_process.DropExpectation),
   )
 
   yield api.test(

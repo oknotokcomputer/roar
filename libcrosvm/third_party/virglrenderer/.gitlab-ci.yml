@@ -1,10 +1,3 @@
-workflow:
-  rules:
-    # do not duplicate pipelines on merge pipelines
-    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
-      when: never
-    - when: always
-
 variables:
   FDO_UPSTREAM_REPO: "virgl/virglrenderer"
   MESA_TEMPLATES_COMMIT: &ci-templates-commit d5aa3941aa03c2f716595116354fb81eb8012acb
@@ -17,7 +10,7 @@ variables:
   #
   # Pick a pipeline on https://gitlab.freedesktop.org/mesa/mesa/-/pipelines/
   #
-  MESA_PIPELINE_ID: 1124531
+  MESA_PIPELINE_ID: 987468
   MESA_PROJECT_PATH: mesa/mesa
   STORAGE_HOST: s3.freedesktop.org
   CI_REGISTRY_IMAGE: "registry.freedesktop.org/${MESA_PROJECT_PATH}"
@@ -26,7 +19,7 @@ variables:
   # per-job artifact storage on MinIO
   JOB_ARTIFACTS_BASE: ${PIPELINE_ARTIFACTS_BASE}/${CI_JOB_ID}
   # reference images stored for traces
-  PIGLIT_REPLAY_REFERENCE_IMAGES_BASE: "${STORAGE_HOST}/mesa-tracie-results/${MESA_PROJECT_PATH}"
+  PIGLIT_REPLAY_REFERENCE_IMAGES_BASE: "${STORAGE_HOST}/mesa-tracie-results/${FDO_UPSTREAM_REPO}"
 
 
 include:
@@ -43,7 +36,7 @@ include:
     # IMPORTANT: Use a recent Mesa Git revision
     # The commit ref must be in sync with the pipeline picked above
     # It can be found on the pipeline page below the commit message
-    ref: c7202751ad9c223f4fb4324141919e679b8d57de
+    ref: edd3cd67c2f69a81fec0595ec1469a71521d6043
     file:
       - '/.gitlab-ci/image-tags.yml'
 
@@ -89,7 +82,7 @@ stages:
   variables:
     MESA_IMAGE_PATH: ${DEBIAN_X86_64_BUILD_IMAGE_PATH}
     MESA_IMAGE_TAG: ${DEBIAN_BUILD_TAG}
-    MESA_BASE_TAG: "${DEBIAN_BASE_TAG}--${PKG_REPO_REV}"
+    MESA_BASE_TAG: ${DEBIAN_BASE_TAG}
 
 debian/x86_64_build:
   stage: build
@@ -297,7 +290,7 @@ make check venus:
     CI_JOB_JWT_FILE: /minio_jwt
     MESA_IMAGE_PATH: ${DEBIAN_X86_64_TEST_IMAGE_GL_PATH}
     MESA_IMAGE_TAG: ${DEBIAN_X86_64_TEST_GL_TAG}
-    MESA_BASE_TAG: "${DEBIAN_BASE_TAG}--${PKG_REPO_REV}--${KERNEL_TAG}"
+    MESA_BASE_TAG: "${DEBIAN_BASE_TAG}--${KERNEL_TAG}"
   script:
     - export DEQP_RESULTS_DIR="results/${CI_JOB_NAME_SANITIZED}"
     - export PIGLIT_RESULTS_DIR="results/${CI_JOB_NAME_SANITIZED}"
@@ -329,7 +322,7 @@ make check venus:
     CI_JOB_JWT_FILE: /minio_jwt
     MESA_IMAGE_PATH: ${DEBIAN_X86_64_TEST_IMAGE_VK_PATH}
     MESA_IMAGE_TAG: ${DEBIAN_X86_64_TEST_VK_TAG}
-    MESA_BASE_TAG: "${DEBIAN_BASE_TAG}--${PKG_REPO_REV}--${KERNEL_TAG}"
+    MESA_BASE_TAG: "${DEBIAN_BASE_TAG}--${KERNEL_TAG}"
   script:
     - export DEQP_RESULTS_DIR="results/${CI_JOB_NAME_SANITIZED}"
     - export PIGLIT_RESULTS_DIR="results/${CI_JOB_NAME_SANITIZED}"
@@ -355,7 +348,6 @@ make check venus:
   variables:
     GALLIUM_DRIVER: virpipe
     GALLIVM_PERF: nopt
-    LP_NUM_THREADS: 1
 
 .gl-virt-test:
   extends:
@@ -415,7 +407,6 @@ piglit-gl-host:
     - .piglit-host
   variables:
     GPU_VERSION: virgl-gl
-    DEQP_FRACTION: 4
 
 piglit-gles-host:
   extends:
@@ -423,7 +414,6 @@ piglit-gles-host:
   variables:
     VIRGL_HOST_API: GLES
     GPU_VERSION: virgl-gles
-    DEQP_FRACTION: 4
 
 # Virt runners (virgl/crosvm)
 
@@ -433,7 +423,7 @@ deqp-gl-virt:
   variables:
     DEQP_SUITE: virgl-gl
     GPU_VERSION: virgl-gl
-    CROSVM_GPU_ARGS: &deqp-gl-crosvm-gpu-args "gles=false,backend=virglrenderer,egl=true,surfaceless=true,width=1024,height=768,fixed-blob-mapping=false"
+    CROSVM_GPU_ARGS: &deqp-gl-crosvm-gpu-args "gles=false,backend=virglrenderer,egl=true,surfaceless=true,width=1024,height=768"
 
 deqp-gles-virt:
   extends:
@@ -442,7 +432,7 @@ deqp-gles-virt:
     VIRGL_HOST_API: GLES
     DEQP_SUITE: virgl-gles
     GPU_VERSION: virgl-gles
-    CROSVM_GPU_ARGS: &deqp-gles-crosvm-gpu-args "gles=true,backend=virglrenderer,egl=true,surfaceless=true,width=1024,height=768,fixed-blob-mapping=false"
+    CROSVM_GPU_ARGS: &deqp-gles-crosvm-gpu-args "gles=true,backend=virglrenderer,egl=true,surfaceless=true,width=1024,height=768"
 
 piglit-gl-virt:
   extends:
@@ -468,7 +458,7 @@ virgl-traces:
     GPU_VERSION: virgl-gl
     CROSVM_GPU_ARGS: *deqp-gl-crosvm-gpu-args
     EGL_PLATFORM: "surfaceless"
-    PIGLIT_TRACES_FILE: "traces-virgl.yml"
+    PIGLIT_REPLAY_DESCRIPTION_FILE: "${CI_PROJECT_DIR}/install/traces-virgl.yml"
     PIGLIT_REPLAY_DEVICE_NAME: "gl-virgl"
     PIGLIT_RESULTS: "virgl-replay"
 
@@ -484,10 +474,9 @@ venus-lavapipe:
   extends:
     - .venus-lavapipe-test
   variables:
-    DEQP_FRACTION: 35
+    DEQP_FRACTION: 15
     DEQP_SUITE: venus
     GPU_VERSION: venus
-    LP_NUM_THREADS: 2
-    CROSVM_MEMORY: 12288
-    CROSVM_CPU: $FDO_CI_CONCURRENT
-    CROSVM_GPU_ARGS: "vulkan=true,gles=false,backend=virglrenderer,egl=true,surfaceless=true,fixed-blob-mapping=false"
+    LP_NUM_THREADS: 1 # There will be FDO_CI_CONCURRENT Crosvm processes, so each should use a single thread
+    CROSVM_MEMORY: 3072
+    CROSVM_GPU_ARGS: "vulkan=true,gles=false,backend=virglrenderer,egl=true,surfaceless=true"

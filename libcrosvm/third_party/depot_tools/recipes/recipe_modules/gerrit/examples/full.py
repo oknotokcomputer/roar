@@ -2,7 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-PYTHON_VERSION_COMPATIBILITY = 'PY3'
+PYTHON_VERSION_COMPATIBILITY = 'PY2+3'
 
 DEPS = [
     'gerrit',
@@ -17,11 +17,7 @@ def RunSteps(api):
   branch = 'test'
   commit = '67ebf73496383c6777035e374d2d664009e2aa5c'
 
-  data = api.gerrit.create_gerrit_branch(host,
-                                         project,
-                                         branch,
-                                         commit,
-                                         allow_existent_branch=True)
+  data = api.gerrit.create_gerrit_branch(host, project, branch, commit)
   assert data == 'refs/heads/test'
 
   data = api.gerrit.get_gerrit_branch(host, project, 'main')
@@ -89,15 +85,16 @@ def RunSteps(api):
 
   api.gerrit.abandon_change(host, 123, 'bad roll')
 
-  api.gerrit.get_change_description(
-      host,
-      change=122,
-      patchset=3,
-      step_test_data=api.gerrit.test_api.get_empty_changes_response_data)
+  with api.step.defer_results():
+    api.gerrit.get_change_description(
+        host,
+        change=122,
+        patchset=3,
+        step_test_data=api.gerrit.test_api.get_empty_changes_response_data)
 
 
 def GenTests(api):
-  yield (api.test('basic', status="INFRA_FAILURE") +
+  yield (api.test('basic') +
          api.step_data('gerrit create_gerrit_branch (v8/v8 test)',
                        api.gerrit.make_gerrit_create_branch_response_data()) +
          api.step_data('gerrit create_gerrit_tag (v8/v8 1.0)',

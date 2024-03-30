@@ -8,10 +8,10 @@
 #include "vkr_context.h"
 
 void
-vkr_cs_encoder_set_stream_locked(struct vkr_cs_encoder *enc,
-                                 const struct vkr_resource *res,
-                                 size_t offset,
-                                 size_t size)
+vkr_cs_encoder_set_stream(struct vkr_cs_encoder *enc,
+                          const struct vkr_resource *res,
+                          size_t offset,
+                          size_t size)
 {
    if (!res) {
       memset(&enc->stream, 0, sizeof(enc->stream));
@@ -34,13 +34,13 @@ vkr_cs_encoder_set_stream_locked(struct vkr_cs_encoder *enc,
 
    enc->end = res->u.data + res->size;
 
-   vkr_cs_encoder_seek_stream_locked(enc, 0);
+   vkr_cs_encoder_seek_stream(enc, 0);
 }
 
 void
-vkr_cs_encoder_seek_stream_locked(struct vkr_cs_encoder *enc, size_t pos)
+vkr_cs_encoder_seek_stream(struct vkr_cs_encoder *enc, size_t pos)
 {
-   if (unlikely(!enc->stream.resource || pos > enc->stream.size)) {
+   if (unlikely(pos > enc->stream.size)) {
       vkr_log("failed to seek the reply stream to %zu", pos);
       vkr_cs_encoder_set_fatal(enc);
       return;
@@ -49,14 +49,14 @@ vkr_cs_encoder_seek_stream_locked(struct vkr_cs_encoder *enc, size_t pos)
    enc->cur = enc->stream.resource->u.data + enc->stream.offset + pos;
 }
 
-int
-vkr_cs_decoder_init(struct vkr_cs_decoder *dec, struct vkr_context *ctx)
+void
+vkr_cs_decoder_init(struct vkr_cs_decoder *dec,
+                    bool *fatal_error,
+                    const struct hash_table *object_table)
 {
    memset(dec, 0, sizeof(*dec));
-   dec->fatal_error = &ctx->cs_fatal_error;
-   dec->object_table = ctx->object_table;
-   dec->object_mutex = &ctx->object_mutex;
-   return mtx_init(&dec->resource_mutex, mtx_plain);
+   dec->fatal_error = fatal_error;
+   dec->object_table = object_table;
 }
 
 void
@@ -67,30 +67,6 @@ vkr_cs_decoder_fini(struct vkr_cs_decoder *dec)
       free(pool->buffers[i]);
    if (pool->buffers)
       free(pool->buffers);
-
-   mtx_destroy(&dec->resource_mutex);
-}
-
-bool
-vkr_cs_decoder_set_resource_stream(struct vkr_cs_decoder *dec,
-                                   struct vkr_context *ctx,
-                                   uint32_t res_id,
-                                   size_t offset,
-                                   size_t size)
-{
-   mtx_lock(&dec->resource_mutex);
-   struct vkr_resource *res = vkr_context_get_resource(ctx, res_id);
-   if (unlikely(!res || res->fd_type != VIRGL_RESOURCE_FD_SHM || size > res->size ||
-                offset > res->size - size)) {
-      mtx_unlock(&dec->resource_mutex);
-      return false;
-   }
-
-   dec->resource = res;
-   dec->cur = res->u.data + offset;
-   dec->end = dec->cur + size;
-   mtx_unlock(&dec->resource_mutex);
-   return true;
 }
 
 static void
@@ -141,47 +117,46 @@ vkr_cs_decoder_reset(struct vkr_cs_decoder *dec)
 
    vkr_cs_decoder_gc_temp_pool(dec);
 
-   dec->saved_state_valid = false;
-   /* no need to lock decoder here */
-   dec->resource = NULL;
+   dec->saved_state_count = 0;
    dec->cur = NULL;
    dec->end = NULL;
 }
 
-void
-vkr_cs_decoder_save_state(struct vkr_cs_decoder *dec)
+bool
+vkr_cs_decoder_push_state(struct vkr_cs_decoder *dec)
 {
-   assert(!dec->saved_state_valid);
-   dec->saved_state_valid = true;
+   struct vkr_cs_decoder_temp_pool *pool = &dec->temp_pool;
+   struct vkr_cs_decoder_saved_state *saved;
 
-   struct vkr_cs_decoder_saved_state *saved = &dec->saved_state;
+   if (dec->saved_state_count >= ARRAY_SIZE(dec->saved_states))
+      return false;
+
+   saved = &dec->saved_states[dec->saved_state_count++];
    saved->cur = dec->cur;
    saved->end = dec->end;
 
-   struct vkr_cs_decoder_temp_pool *pool = &dec->temp_pool;
    saved->pool_buffer_count = pool->buffer_count;
    saved->pool_reset_to = pool->reset_to;
    /* avoid temp data corruption */
    pool->reset_to = pool->cur;
 
    vkr_cs_decoder_sanity_check(dec);
+
+   return true;
 }
 
 void
-vkr_cs_decoder_restore_state(struct vkr_cs_decoder *dec)
+vkr_cs_decoder_pop_state(struct vkr_cs_decoder *dec)
 {
-   assert(dec->saved_state_valid);
-   dec->saved_state_valid = false;
+   struct vkr_cs_decoder_temp_pool *pool = &dec->temp_pool;
+   const struct vkr_cs_decoder_saved_state *saved;
 
-   /* no need to lock decoder here */
-   dec->resource = NULL;
-
-   const struct vkr_cs_decoder_saved_state *saved = &dec->saved_state;
+   assert(dec->saved_state_count);
+   saved = &dec->saved_states[--dec->saved_state_count];
    dec->cur = saved->cur;
    dec->end = saved->end;
 
    /* restore only if pool->reset_to points to the same buffer */
-   struct vkr_cs_decoder_temp_pool *pool = &dec->temp_pool;
    if (pool->buffer_count == saved->pool_buffer_count)
       pool->reset_to = saved->pool_reset_to;
 

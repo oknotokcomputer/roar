@@ -3,11 +3,11 @@
 # found in the LICENSE file.
 
 function cipd_bin_setup {
-    local MYPATH="${DEPOT_TOOLS_DIR:-$(dirname "${BASH_SOURCE[0]}")}"
+    local MYPATH=$(dirname "${BASH_SOURCE[0]}")
     local ENSURE="$MYPATH/cipd_manifest.txt"
     local ROOT="$MYPATH/.cipd_bin"
 
-    UNAME="${DEPOT_TOOLS_UNAME_S:-$(uname -s | tr '[:upper:]' '[:lower:]')}"
+    UNAME=`uname -s | tr '[:upper:]' '[:lower:]'`
     case $UNAME in
       cygwin*)
         ENSURE="$(cygpath -w $ENSURE)"
@@ -15,10 +15,8 @@ function cipd_bin_setup {
         ;;
     esac
 
-    (
-    source "$MYPATH/cipd" ensure \
+    "$MYPATH/cipd" ensure \
         -log-level warning \
         -ensure-file "$ENSURE" \
         -root "$ROOT"
-    )
 }

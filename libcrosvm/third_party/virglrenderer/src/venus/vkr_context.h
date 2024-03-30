@@ -49,9 +49,6 @@ struct vkr_context {
    enum vkr_context_validate_level validate_level;
    bool validate_fatal;
 
-   /* true if ENABLE_RENDER_SERVER_WORKER_THREAD is defined */
-   bool on_worker_thread;
-
    mtx_t ring_mutex;
    struct list_head rings;
 
@@ -226,8 +223,9 @@ vkr_context_remove_object(struct vkr_context *ctx, struct vkr_object *obj)
 static inline void
 vkr_context_remove_objects(struct vkr_context *ctx, struct list_head *objects)
 {
+   struct vkr_object *obj, *tmp;
    mtx_lock(&ctx->object_mutex);
-   list_for_each_entry_safe (struct vkr_object, obj, objects, track_head)
+   LIST_FOR_EACH_ENTRY_SAFE (obj, tmp, objects, track_head)
       vkr_context_remove_object_locked(ctx, obj);
    mtx_unlock(&ctx->object_mutex);
    /* objects should be reinitialized if to be reused */
@@ -238,9 +236,8 @@ vkr_context_get_object(struct vkr_context *ctx, vkr_object_id obj_id)
 {
    mtx_lock(&ctx->object_mutex);
    const struct hash_entry *entry = _mesa_hash_table_search(ctx->object_table, &obj_id);
-   void *obj = likely(entry) ? entry->data : NULL;
    mtx_unlock(&ctx->object_mutex);
-   return obj;
+   return likely(entry) ? entry->data : NULL;
 }
 
 void

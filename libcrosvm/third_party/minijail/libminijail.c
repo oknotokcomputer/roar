@@ -26,6 +26,7 @@
 #include <sys/param.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
+#include <sys/select.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
@@ -146,7 +147,6 @@ struct minijail {
 		bool ipc : 1;
 		bool uts : 1;
 		bool net : 1;
-		bool net_loopback : 1;
 		bool enter_net : 1;
 		bool ns_cgroups : 1;
 		bool userns : 1;
@@ -177,7 +177,6 @@ struct minijail {
 		bool enable_fs_restrictions : 1;
 		bool enable_profile_fs_restrictions : 1;
 		bool enable_default_runtime : 1;
-		bool enable_new_sessions : 1;
 	} flags;
 	uid_t uid;
 	gid_t gid;
@@ -191,7 +190,6 @@ struct minijail {
 	int mountns_fd;
 	int netns_fd;
 	int fs_rules_fd;
-	int fs_rules_landlock_abi;
 	char *chrootdir;
 	char *pid_file_path;
 	char *uidmap;
@@ -316,7 +314,6 @@ void minijail_preenter(struct minijail *j)
 	j->flags.enter_vfs = 0;
 	j->flags.ns_cgroups = 0;
 	j->flags.net = 0;
-	j->flags.net_loopback = 0;
 	j->flags.uts = 0;
 	j->flags.remount_proc_ro = 0;
 	j->flags.pids = 0;
@@ -330,56 +327,13 @@ void minijail_preenter(struct minijail *j)
 	j->flags.using_minimalistic_mountns = 0;
 	j->flags.enable_profile_fs_restrictions = 0;
 	j->flags.enable_default_runtime = 0;
-	j->flags.enable_new_sessions = 0;
 	free_remounts_list(j);
 }
 
-static bool fs_refer_restriction_supported(struct minijail *j)
-{
-	if (j->fs_rules_landlock_abi < 0) {
-		const int abi = landlock_create_ruleset(
-		    NULL, 0, LANDLOCK_CREATE_RULESET_VERSION);
-		/*
-		 * If we have a valid ABI, save the result. Otherwise, leave
-		 * the struct field unmodified to make sure it's correctly
-		 * marshaled and unmarshaled.
-		 */
-		if (abi > 0) {
-			j->fs_rules_landlock_abi = abi;
-		}
-	}
-
-	return j->fs_rules_landlock_abi >= LANDLOCK_ABI_FS_REFER_SUPPORTED;
-}
-
-/* Sets fs_rules_fd to an empty ruleset, if Landlock is available. */
-static int setup_fs_rules_fd(struct minijail *j)
-{
-	struct minijail_landlock_ruleset_attr ruleset_attr = {
-	    .handled_access_fs = HANDLED_ACCESS_TYPES};
-	if (fs_refer_restriction_supported(j)) {
-		ruleset_attr.handled_access_fs |= LANDLOCK_ACCESS_FS_REFER;
-	}
-
-	j->fs_rules_fd =
-	    landlock_create_ruleset(&ruleset_attr, sizeof(ruleset_attr), 0);
-	if (j->fs_rules_fd < 0) {
-		/*
-		 * As of Landlock ABI=3, the useful errors we expect here are
-		 * ENOSYS or EOPNOTSUPP. In both cases, Landlock is not
-		 * supported by the kernel and Minijail can silently ignore it.
-		 * TODO(b/300142205): log when we no longer have 5.4 kernels in
-		 * ChromeOS (~EoY 2024).
-		 */
-		return errno;
-	}
-
-	return 0;
-}
-
 /* Adds a rule for a given path to apply once minijail is entered. */
-static int add_fs_restriction_path(struct minijail *j, const char *path,
-				   uint64_t landlock_flags)
+static int add_fs_restriction_path(struct minijail *j,
+		const char *path,
+		uint64_t landlock_flags)
 {
 	struct fs_rule *r = calloc(1, sizeof(*r));
 	if (!r)
@@ -395,36 +349,19 @@ static int add_fs_restriction_path(struct minijail *j, const char *path,
 		j->fs_rules_tail = r;
 	}
 
-	/*
-	 * If this is our first rule, set up the rules FD early for API users.
-	 *
-	 * This is important for users calling minijail_enter() directly.
-	 * Otherise, this is handled later inside minijail_run_internal().
-	 *
-	 * The reason for this is because setup_fs_rules_fd() needs to be
-	 * called from inside the process that applies Landlock rules. For
-	 * minijail_enter(), that's this process. For minijail_run_internal(),
-	 * that's the child process.
-	 */
-	if (j->fs_rules_count == 0)
-		setup_fs_rules_fd(j);
-
 	j->fs_rules_count++;
 	return 0;
 }
 
-bool mount_has_bind_flag(struct mountpoint *m)
-{
+bool mount_has_bind_flag(struct mountpoint *m) {
 	return !!(m->flags & MS_BIND);
 }
 
-bool mount_has_readonly_flag(struct mountpoint *m)
-{
+bool mount_has_readonly_flag(struct mountpoint *m) {
 	return !!(m->flags & MS_RDONLY);
 }
 
-bool mount_events_allowed(struct mountpoint *m)
-{
+bool mount_events_allowed(struct mountpoint *m) {
 	return !!(m->flags & MS_SHARED) || !!(m->flags & MS_SLAVE);
 }
 
@@ -438,16 +375,13 @@ void minijail_preexec(struct minijail *j)
 	int enter_vfs = j->flags.enter_vfs;
 	int ns_cgroups = j->flags.ns_cgroups;
 	int net = j->flags.net;
-	int net_loopback = j->flags.net_loopback;
 	int uts = j->flags.uts;
 	int remount_proc_ro = j->flags.remount_proc_ro;
 	int userns = j->flags.userns;
 	int using_minimalistic_mountns = j->flags.using_minimalistic_mountns;
 	int enable_fs_restrictions = j->flags.enable_fs_restrictions;
-	int enable_profile_fs_restrictions =
-	    j->flags.enable_profile_fs_restrictions;
+	int enable_profile_fs_restrictions = j->flags.enable_profile_fs_restrictions;
 	int enable_default_runtime = j->flags.enable_default_runtime;
-	int enable_new_sessions = j->flags.enable_new_sessions;
 	if (j->user)
 		free(j->user);
 	j->user = NULL;
@@ -465,16 +399,13 @@ void minijail_preexec(struct minijail *j)
 	j->flags.enter_vfs = enter_vfs;
 	j->flags.ns_cgroups = ns_cgroups;
 	j->flags.net = net;
-	j->flags.net_loopback = net_loopback;
 	j->flags.uts = uts;
 	j->flags.remount_proc_ro = remount_proc_ro;
 	j->flags.userns = userns;
 	j->flags.using_minimalistic_mountns = using_minimalistic_mountns;
 	j->flags.enable_fs_restrictions = enable_fs_restrictions;
-	j->flags.enable_profile_fs_restrictions =
-	    enable_profile_fs_restrictions;
+	j->flags.enable_profile_fs_restrictions = enable_profile_fs_restrictions;
 	j->flags.enable_default_runtime = enable_default_runtime;
-	j->flags.enable_new_sessions = enable_new_sessions;
 	/* Note, |pids| will already have been used before this call. */
 }
 
@@ -486,12 +417,10 @@ struct minijail API *minijail_new(void)
 	if (j) {
 		j->remount_mode = MS_PRIVATE;
 		j->fs_rules_fd = -1;
-		j->fs_rules_landlock_abi = -1;
 		j->flags.using_minimalistic_mountns = false;
 		j->flags.enable_fs_restrictions = true;
 		j->flags.enable_profile_fs_restrictions = true;
 		j->flags.enable_default_runtime = true;
-		j->flags.enable_new_sessions = true;
 	}
 	return j;
 }
@@ -645,12 +574,6 @@ void API minijail_log_seccomp_filter_failures(struct minijail *j)
 void API minijail_set_using_minimalistic_mountns(struct minijail *j)
 {
 	j->flags.using_minimalistic_mountns = true;
-}
-
-void API minijail_set_enable_new_sessions(struct minijail *j,
-					  bool enable_new_sessions)
-{
-	j->flags.enable_new_sessions = enable_new_sessions;
 }
 
 void API minijail_set_enable_default_runtime(struct minijail *j,
@@ -849,16 +772,9 @@ int API minijail_namespace_set_hostname(struct minijail *j, const char *name)
 	return 0;
 }
 
-void API minijail_namespace_net_loopback(struct minijail *j,
-					 bool enable_loopback)
-{
-	j->flags.net = 1;
-	j->flags.net_loopback = enable_loopback;
-}
-
 void API minijail_namespace_net(struct minijail *j)
 {
-	minijail_namespace_net_loopback(j, true);
+	j->flags.net = 1;
 }
 
 void API minijail_namespace_enter_net(struct minijail *j, const char *ns_path)
@@ -1073,7 +989,7 @@ int API minijail_create_session(struct minijail *j)
 int API minijail_add_fs_restriction_rx(struct minijail *j, const char *path)
 {
 	return !add_fs_restriction_path(j, path,
-					ACCESS_FS_ROUGHLY_READ_EXECUTE);
+		ACCESS_FS_ROUGHLY_READ_EXECUTE);
 }
 
 int API minijail_add_fs_restriction_ro(struct minijail *j, const char *path)
@@ -1083,39 +999,22 @@ int API minijail_add_fs_restriction_ro(struct minijail *j, const char *path)
 
 int API minijail_add_fs_restriction_rw(struct minijail *j, const char *path)
 {
-	return !add_fs_restriction_path(
-	    j, path, ACCESS_FS_ROUGHLY_READ | ACCESS_FS_ROUGHLY_BASIC_WRITE);
+	return !add_fs_restriction_path(j, path,
+		ACCESS_FS_ROUGHLY_READ | ACCESS_FS_ROUGHLY_BASIC_WRITE);
 }
 
 int API minijail_add_fs_restriction_advanced_rw(struct minijail *j,
 						const char *path)
 {
-	uint16_t landlock_flags =
-	    ACCESS_FS_ROUGHLY_READ | ACCESS_FS_ROUGHLY_FULL_WRITE;
-	if (fs_refer_restriction_supported(j)) {
-		landlock_flags |= LANDLOCK_ACCESS_FS_REFER;
-	}
-
-	return !add_fs_restriction_path(j, path, landlock_flags);
+	return !add_fs_restriction_path(j, path,
+		ACCESS_FS_ROUGHLY_READ | ACCESS_FS_ROUGHLY_FULL_WRITE);
 }
 
-int API minijail_add_fs_restriction_edit(struct minijail *j, const char *path)
+int API minijail_add_fs_restriction_edit(struct minijail *j,
+						const char *path)
 {
-	return !add_fs_restriction_path(
-	    j, path, ACCESS_FS_ROUGHLY_READ | ACCESS_FS_ROUGHLY_EDIT);
-}
-
-int API minijail_add_fs_restriction_access_rights(struct minijail *j,
-						  const char *path,
-						  uint16_t landlock_flags)
-{
-	return !add_fs_restriction_path(j, path, landlock_flags);
-}
-
-bool API
-minijail_is_fs_restriction_ruleset_initialized(const struct minijail *j)
-{
-	return j->fs_rules_fd >= 0;
+	return !add_fs_restriction_path(j, path,
+		ACCESS_FS_ROUGHLY_READ | ACCESS_FS_ROUGHLY_EDIT);
 }
 
 static bool is_valid_bind_path(const char *path)
@@ -1296,6 +1195,8 @@ int API minijail_add_hook(struct minijail *j, minijail_hook_t hook,
 {
 	struct hook *c;
 
+	if (hook == NULL)
+		return -EINVAL;
 	if (event >= MINIJAIL_HOOK_EVENT_MAX)
 		return -EINVAL;
 	c = calloc(1, sizeof(*c));
@@ -2613,23 +2514,46 @@ static void drop_caps(const struct minijail *j, unsigned int last_valid_cap)
 	cap_free(caps);
 }
 
-/* Calls landlock_restrict_self(), based on current inodes. */
+/* Sets fs_rules_fd to an empty ruleset, if Landlock is available. */
+static int setup_fs_rules_fd(struct minijail *j)
+{
+	struct minijail_landlock_ruleset_attr ruleset_attr = {
+	    .handled_access_fs = HANDLED_ACCESS_TYPES};
+
+	j->fs_rules_fd =
+	    landlock_create_ruleset(&ruleset_attr, sizeof(ruleset_attr), 0);
+	if (j->fs_rules_fd < 0) {
+		const int err = errno;
+		pwarn("failed to create a ruleset");
+		switch (err) {
+		case ENOSYS:
+			pwarn(
+			    "Landlock is not supported by the current kernel");
+			break;
+		case EOPNOTSUPP:
+			pwarn(
+			    "Landlock is currently disabled by kernel config");
+			break;
+		}
+		return err;
+	}
+
+	return 0;
+}
+
+/* Creates a ruleset for current inodes then calls landlock_restrict_self(). */
 static void apply_landlock_restrictions(const struct minijail *j)
 {
 	struct fs_rule *r = j->fs_rules_head;
-	/* The ruleset_fd needs to be mutable so use a stack copy from now on.
-	 */
+	/* The ruleset_fd needs to be mutable so use a stack copy from now on. */
 	int ruleset_fd = j->fs_rules_fd;
 	if (!j->flags.enable_fs_restrictions || !r) {
 		return;
 	}
 
-	if (minijail_is_fs_restriction_available()) {
-		while (r) {
-			populate_ruleset_internal(r->path, ruleset_fd,
-						  r->landlock_flags);
-			r = r->next;
-		}
+	while (r) {
+		populate_ruleset_internal(r->path, ruleset_fd, r->landlock_flags);
+		r = r->next;
 	}
 
 	if (ruleset_fd >= 0) {
@@ -2643,8 +2567,7 @@ static void apply_landlock_restrictions(const struct minijail *j)
 	}
 }
 
-static void set_no_new_privs(const struct minijail *j)
-{
+static void set_no_new_privs(const struct minijail *j) {
 	if (j->flags.no_new_privs) {
 		if (!sys_set_no_new_privs()) {
 			die("set_no_new_privs() failed");
@@ -2874,8 +2797,7 @@ void API minijail_enter(const struct minijail *j)
 	} else if (j->flags.net) {
 		if (unshare(CLONE_NEWNET))
 			pdie("unshare(CLONE_NEWNET) failed");
-		if (j->flags.net_loopback)
-			config_net_loopback();
+		config_net_loopback();
 	}
 
 	if (j->flags.ns_cgroups && unshare(CLONE_NEWCGROUP))
@@ -3162,31 +3084,19 @@ static int close_open_fds(int *inheritable_fds, size_t size)
 }
 
 /* Return true if the specified file descriptor is already open. */
-int minijail_fd_is_open(int fd)
+static int fd_is_open(int fd)
 {
 	return fcntl(fd, F_GETFD) != -1 || errno != EBADF;
 }
 
-/*
- * Returns true if |check_fd| is one of j->preserved_fds[:max_index].child_fd.
- */
-static bool is_preserved_child_fd(struct minijail *j, int check_fd,
-				  size_t max_index)
-{
-	max_index = MIN(max_index, j->preserved_fd_count);
-	for (size_t i = 0; i < max_index; i++) {
-		if (j->preserved_fds[i].child_fd == check_fd) {
-			return true;
-		}
-	}
-	return false;
-}
+static_assert(FD_SETSIZE >= MAX_PRESERVED_FDS * 2 - 1,
+	      "If true, ensure_no_fd_conflict will always find an unused fd.");
 
 /* If parent_fd will be used by a child fd, move it to an unused fd. */
-static int ensure_no_fd_conflict(struct minijail *j, int child_fd,
-				 int *parent_fd, size_t max_index)
+static int ensure_no_fd_conflict(const fd_set *child_fds, int child_fd,
+				 int *parent_fd)
 {
-	if (!is_preserved_child_fd(j, *parent_fd, max_index)) {
+	if (!FD_ISSET(*parent_fd, child_fds)) {
 		return 0;
 	}
 
@@ -3195,10 +3105,9 @@ static int ensure_no_fd_conflict(struct minijail *j, int child_fd,
 	 * temporary.
 	 */
 	int fd = child_fd;
-	if (fd == -1 || minijail_fd_is_open(fd)) {
-		fd = 1023;
-		while (is_preserved_child_fd(j, fd, j->preserved_fd_count) ||
-		       minijail_fd_is_open(fd)) {
+	if (fd == -1 || fd_is_open(fd)) {
+		fd = FD_SETSIZE - 1;
+		while (FD_ISSET(fd, child_fds) || fd_is_open(fd)) {
 			--fd;
 			if (fd < 0) {
 				die("failed to find an unused fd");
@@ -3223,22 +3132,28 @@ static int ensure_no_fd_conflict(struct minijail *j, int child_fd,
 }
 
 /*
- * Check for contradictory mappings and create temporaries for parent file
- * descriptors that would otherwise be overwritten during redirect_fds().
+ * Populate child_fds_out with the set of file descriptors that will be replaced
+ * by redirect_fds().
+ *
+ * NOTE: This creates temporaries for parent file descriptors that would
+ * otherwise be overwritten during redirect_fds().
  */
-static int prepare_preserved_fds(struct minijail *j)
+static int get_child_fds(struct minijail *j, fd_set *child_fds_out)
 {
 	/* Relocate parent_fds that would be replaced by a child_fd. */
 	for (size_t i = 0; i < j->preserved_fd_count; i++) {
 		int child_fd = j->preserved_fds[i].child_fd;
-		if (is_preserved_child_fd(j, child_fd, i)) {
+		if (FD_ISSET(child_fd, child_fds_out)) {
 			die("fd %d is mapped more than once", child_fd);
 		}
 
 		int *parent_fd = &j->preserved_fds[i].parent_fd;
-		if (ensure_no_fd_conflict(j, child_fd, parent_fd, i) == -1) {
+		if (ensure_no_fd_conflict(child_fds_out, child_fd, parent_fd) ==
+		    -1) {
 			return -1;
 		}
+
+		FD_SET(child_fd, child_fds_out);
 	}
 	return 0;
 }
@@ -3259,8 +3174,8 @@ struct minijail_run_state {
 /*
  * Move pipe_fds if they conflict with a child_fd.
  */
-static int avoid_pipe_conflicts(struct minijail *j,
-				struct minijail_run_state *state)
+static int avoid_pipe_conflicts(struct minijail_run_state *state,
+				fd_set *child_fds_out)
 {
 	int *pipe_fds[] = {
 	    state->pipe_fds,   state->child_sync_pipe_fds, state->stdin_fds,
@@ -3268,13 +3183,13 @@ static int avoid_pipe_conflicts(struct minijail *j,
 	};
 	for (size_t i = 0; i < ARRAY_SIZE(pipe_fds); ++i) {
 		if (pipe_fds[i][0] != -1 &&
-		    ensure_no_fd_conflict(j, -1, &pipe_fds[i][0],
-					  j->preserved_fd_count) == -1) {
+		    ensure_no_fd_conflict(child_fds_out, -1, &pipe_fds[i][0]) ==
+			-1) {
 			return -1;
 		}
 		if (pipe_fds[i][1] != -1 &&
-		    ensure_no_fd_conflict(j, -1, &pipe_fds[i][1],
-					  j->preserved_fd_count) == -1) {
+		    ensure_no_fd_conflict(child_fds_out, -1, &pipe_fds[i][1]) ==
+			-1) {
 			return -1;
 		}
 	}
@@ -3287,7 +3202,7 @@ static int avoid_pipe_conflicts(struct minijail *j,
  * NOTE: This will clear FD_CLOEXEC since otherwise the child_fd would not be
  * inherited after the exec call.
  */
-static int redirect_fds(struct minijail *j)
+static int redirect_fds(struct minijail *j, fd_set *child_fds)
 {
 	for (size_t i = 0; i < j->preserved_fd_count; i++) {
 		if (j->preserved_fds[i].parent_fd ==
@@ -3323,8 +3238,7 @@ static int redirect_fds(struct minijail *j)
 	 */
 	for (size_t i = 0; i < j->preserved_fd_count; i++) {
 		int parent_fd = j->preserved_fds[i].parent_fd;
-		if (!is_preserved_child_fd(j, parent_fd,
-					   j->preserved_fd_count)) {
+		if (!FD_ISSET(parent_fd, child_fds)) {
 			close(parent_fd);
 		}
 	}
@@ -3375,30 +3289,25 @@ static void setup_child_std_fds(struct minijail *j,
 		close_and_reset(&std_pipes[i][1]);
 	}
 
-	/* Make sure we're not trying to skip setsid() with a PID namespace. */
-	if (!j->flags.enable_new_sessions && j->flags.pids) {
-		die("cannot skip setsid() with PID namespace");
-	}
-
 	/*
-	 * If new sessions are enabled and any of stdin, stdout, or stderr are
-	 * TTYs, or setsid flag is set, create a new session. This prevents
-	 * the jailed process from using the TIOCSTI ioctl to push characters
-	 * into the parent process terminal's input buffer, therefore escaping
-	 * the jail.
+	 * If any of stdin, stdout, or stderr are TTYs, or setsid flag is
+	 * set, create a new session. This prevents the jailed process from
+	 * using the TIOCSTI ioctl to push characters into the parent process
+	 * terminal's input buffer, therefore escaping the jail.
 	 *
 	 * Since it has just forked, the child will not be a process group
 	 * leader, and this call to setsid() should always succeed.
 	 */
-	if (j->flags.enable_new_sessions &&
-	    (j->flags.setsid || isatty(STDIN_FILENO) || isatty(STDOUT_FILENO) ||
-	     isatty(STDERR_FILENO))) {
+	if (j->flags.setsid || isatty(STDIN_FILENO) || isatty(STDOUT_FILENO) ||
+	    isatty(STDERR_FILENO)) {
 		if (setsid() < 0) {
 			pdie("setsid() failed");
 		}
 
 		if (isatty(STDIN_FILENO)) {
-			ioctl(STDIN_FILENO, TIOCSCTTY, 0);
+			if (ioctl(STDIN_FILENO, TIOCSCTTY, 0) != 0) {
+				pwarn("failed to set controlling terminal");
+			}
 		}
 	}
 }
@@ -3741,7 +3650,7 @@ static int minijail_run_internal(struct minijail *j,
 	 * memory regions / etc attached). We'd need to keep the child around to
 	 * avoid having its children get reparented to init.
 	 *
-	 * TODO(b/317404364): figure out if the "forked child hanging around"
+	 * TODO(ellyjones): figure out if the "forked child hanging around"
 	 * problem is fixable or not. It would be nice if we worked in this
 	 * case.
 	 */
@@ -3762,8 +3671,7 @@ static int minijail_run_internal(struct minijail *j,
 		}
 	} else {
 		if (j->flags.userns)
-			die("user namespaces in Minijail require a PID "
-			    "namespace");
+			die("user namespaces in Minijail require a PID namespace");
 
 		child_pid = fork();
 
@@ -3933,19 +3841,20 @@ static int minijail_run_internal(struct minijail *j,
 	}
 
 	/* The set of fds will be replaced. */
-	if (prepare_preserved_fds(j))
+	fd_set child_fds;
+	FD_ZERO(&child_fds);
+	if (get_child_fds(j, &child_fds))
 		die("failed to set up fd redirections");
 
-	if (avoid_pipe_conflicts(j, state_out))
+	if (avoid_pipe_conflicts(state_out, &child_fds))
 		die("failed to redirect conflicting pipes");
 
 	/* The elf_fd needs to be mutable so use a stack copy from now on. */
 	int elf_fd = config->elf_fd;
-	if (elf_fd != -1 &&
-	    ensure_no_fd_conflict(j, -1, &elf_fd, j->preserved_fd_count))
+	if (elf_fd != -1 && ensure_no_fd_conflict(&child_fds, -1, &elf_fd))
 		die("failed to redirect elf_fd");
 
-	if (redirect_fds(j))
+	if (redirect_fds(j, &child_fds))
 		die("failed to set up fd redirections");
 
 	if (sync_child)
@@ -4177,7 +4086,12 @@ void API minijail_destroy(struct minijail *j)
 		free(c);
 	}
 	j->hooks_tail = NULL;
-	free_fs_rules_list(j);
+	while (j->fs_rules_head) {
+		struct fs_rule *r = j->fs_rules_head;
+		j->fs_rules_head = r->next;
+		free(r);
+	}
+	j->fs_rules_tail = NULL;
 	if (j->user)
 		free(j->user);
 	if (j->suppl_gid_list)
@@ -4208,11 +4122,4 @@ void API minijail_destroy(struct minijail *j)
 void API minijail_log_to_fd(int fd, int min_priority)
 {
 	init_logging(LOG_TO_FD, fd, min_priority);
-}
-
-const char API *minijail_syscall_name(const struct minijail *j, long nr)
-{
-	if (j && j->flags.alt_syscall)
-		return kAltSyscallNamePlaceholder;
-	return lookup_syscall_name(nr);
 }

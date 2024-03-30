@@ -21,7 +21,7 @@ vkr_device_alloc_queue_sync(struct vkr_device *dev,
    struct vkr_queue_sync *sync;
 
    mtx_lock(&dev->free_sync_mutex);
-   if (list_is_empty(&dev->free_syncs)) {
+   if (LIST_IS_EMPTY(&dev->free_syncs)) {
       mtx_unlock(&dev->free_sync_mutex);
 
       sync = malloc(sizeof(*sync));
@@ -70,7 +70,6 @@ vkr_device_free_queue_sync(struct vkr_device *dev, struct vkr_queue_sync *sync)
 static inline void
 vkr_queue_sync_retire(struct vkr_queue *queue, struct vkr_queue_sync *sync)
 {
-   TRACE_FUNC();
    queue->context->retire_fence(queue->context->ctx_id, sync->ring_idx, sync->fence_id);
    vkr_device_free_queue_sync(queue->device, sync);
 }
@@ -81,7 +80,6 @@ vkr_queue_sync_submit(struct vkr_queue *queue,
                       uint32_t ring_idx,
                       uint64_t fence_id)
 {
-   TRACE_FUNC();
    struct vkr_device *dev = queue->device;
    struct vn_device_proc_table *vk = &dev->proc_table;
 
@@ -122,7 +120,8 @@ vkr_queue_sync_thread_fini(struct vkr_queue *queue)
 
    thrd_join(queue->sync_thread.thread, NULL);
 
-   list_for_each_entry_safe (struct vkr_queue_sync, sync, &queue->sync_thread.syncs, head)
+   struct vkr_queue_sync *sync, *tmp;
+   LIST_FOR_EACH_ENTRY_SAFE (sync, tmp, &queue->sync_thread.syncs, head)
       vkr_queue_sync_retire(queue, sync);
 
    mtx_destroy(&queue->sync_thread.mutex);
@@ -162,7 +161,7 @@ vkr_queue_thread(void *arg)
 
    mtx_lock(&queue->sync_thread.mutex);
    while (true) {
-      while (list_is_empty(&queue->sync_thread.syncs) && !queue->sync_thread.join)
+      while (LIST_IS_EMPTY(&queue->sync_thread.syncs) && !queue->sync_thread.join)
          cnd_wait(&queue->sync_thread.cond, &queue->sync_thread.mutex);
 
       if (queue->sync_thread.join)
@@ -310,7 +309,9 @@ vkr_device_lookup_queue(struct vkr_device *dev,
                         uint32_t family,
                         uint32_t index)
 {
-   list_for_each_entry (struct vkr_queue, queue, &dev->queues, base.track_head) {
+   struct vkr_queue *queue;
+
+   LIST_FOR_EACH_ENTRY (queue, &dev->queues, base.track_head) {
       if (queue->flags == flags && queue->family == family && queue->index == index)
          return queue;
    }
@@ -369,7 +370,6 @@ static void
 vkr_dispatch_vkQueueSubmit(UNUSED struct vn_dispatch_context *dispatch,
                            struct vn_command_vkQueueSubmit *args)
 {
-   TRACE_FUNC();
    struct vkr_queue *queue = vkr_queue_from_handle(args->queue);
    struct vn_device_proc_table *vk = &queue->device->proc_table;
 
@@ -385,7 +385,6 @@ static void
 vkr_dispatch_vkQueueBindSparse(UNUSED struct vn_dispatch_context *dispatch,
                                struct vn_command_vkQueueBindSparse *args)
 {
-   TRACE_FUNC();
    struct vkr_queue *queue = vkr_queue_from_handle(args->queue);
    struct vn_device_proc_table *vk = &queue->device->proc_table;
 
@@ -410,7 +409,6 @@ static void
 vkr_dispatch_vkQueueSubmit2(UNUSED struct vn_dispatch_context *dispatch,
                             struct vn_command_vkQueueSubmit2 *args)
 {
-   TRACE_FUNC();
    struct vkr_queue *queue = vkr_queue_from_handle(args->queue);
    struct vn_device_proc_table *vk = &queue->device->proc_table;
 

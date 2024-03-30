@@ -85,7 +85,6 @@ static int virgl_renderer_resource_create_internal(struct virgl_renderer_resourc
    struct virgl_resource *res;
    struct pipe_resource *pipe_res;
    struct vrend_renderer_resource_create_args vrend_args =  { 0 };
-   uint32_t map_info;
 
    if (!state.vrend_initialized)
       return EINVAL;
@@ -93,9 +92,6 @@ static int virgl_renderer_resource_create_internal(struct virgl_renderer_resourc
    /* do not accept handle 0 */
    if (args->handle == 0)
       return EINVAL;
-
-   if (virgl_resource_lookup(args->handle))
-      return -EINVAL;
 
    vrend_args.target = args->target;
    vrend_args.format = args->format;
@@ -112,12 +108,13 @@ static int virgl_renderer_resource_create_internal(struct virgl_renderer_resourc
    if (!pipe_res)
       return EINVAL;
 
-   map_info = vrend_renderer_resource_get_map_info(pipe_res);
    res = virgl_resource_create_from_pipe(args->handle, pipe_res, iov, num_iovs);
-   if (!res)
+   if (!res) {
+      vrend_renderer_resource_destroy((struct vrend_resource *)pipe_res);
       return -ENOMEM;
+   }
 
-   res->map_info = map_info;
+   res->map_info = vrend_renderer_resource_get_map_info(pipe_res);
 
    return 0;
 }
@@ -1179,15 +1176,19 @@ int virgl_renderer_resource_create_blob(const struct virgl_renderer_resource_cre
                                           args->iovecs,
                                           args->num_iovs,
                                           &blob.vulkan_info);
-      if (!res)
+      if (!res) {
+         close(blob.u.fd);
          return -ENOMEM;
+      }
    } else {
       res = virgl_resource_create_from_pipe(args->res_handle,
                                             blob.u.pipe_resource,
                                             args->iovecs,
                                             args->num_iovs);
-      if (!res)
+      if (!res) {
+         vrend_renderer_resource_destroy((struct vrend_resource *)blob.u.pipe_resource);
          return -ENOMEM;
+      }
    }
 
    res->map_info = blob.map_info;

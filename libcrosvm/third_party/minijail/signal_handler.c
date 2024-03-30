@@ -20,21 +20,21 @@ static int get_si_syscall(const siginfo_t *info)
 {
 #if defined(si_syscall)
 	return info->si_syscall;
-#else
+#endif
+
 	typedef struct {
-		void *ip;
-		int nr;
-		unsigned int arch;
+		void		*ip;
+		int		nr;
+		unsigned int	arch;
 	} local_siginfo_t;
 
 	union {
 		const siginfo_t *info;
 		const local_siginfo_t *local_info;
 	} local_info = {
-	    .info = info,
+		.info = info,
 	};
 	return local_info.local_info->nr;
-#endif
 }
 
 void log_sigsys_handler(int sig attribute_unused, siginfo_t *info,

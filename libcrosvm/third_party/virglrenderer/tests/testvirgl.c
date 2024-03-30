@@ -28,7 +28,7 @@
 #include <check.h>
 #include <errno.h>
 #include "pipe/p_defines.h"
-#include "util/u_formats.h"
+#include "pipe/p_format.h"
 #include "util/u_memory.h"
 #include "util/u_format.h"
 #include "testvirgl.h"
@@ -306,7 +306,7 @@ static void *get_caps(void)
     ck_assert_int_ge(max_ver, 1);
     ck_assert_int_ne(max_size, 0);
     ck_assert_int_ge(max_size, sizeof(struct virgl_caps_v1));
-    caps = calloc(1, max_size);
+    caps = malloc(max_size);
 
     virgl_renderer_fill_caps(0, 0, caps);
     return caps;

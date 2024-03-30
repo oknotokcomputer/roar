@@ -10,24 +10,31 @@ import config_util  # pylint: disable=import-error
 # This class doesn't need an __init__ method, so we disable the warning
 # pylint: disable=no-init
 class Infra(config_util.Config):
-    """Basic Config class for the Infrastructure repositories."""
-    @staticmethod
-    def fetch_spec(props):
-        return {
-            'alias': {
-                'config': 'infra_superproject',
-                'props': [],
-            },
-        }
+  """Basic Config class for the Infrastructure repositories."""
 
-    @staticmethod
-    def expected_root(_props):
-        return ''
+  @staticmethod
+  def fetch_spec(props):
+    return {
+      'type': 'gclient_git',
+      'gclient_git_spec': {
+        'solutions': [
+          {
+            'name'     : 'infra',
+            'url'      : 'https://chromium.googlesource.com/infra/infra.git',
+            'managed'  : False,
+          }
+        ],
+      },
+    }
+
+  @staticmethod
+  def expected_root(_props):
+    return 'infra'
 
 
 def main(argv=None):
-    return Infra().handle_args(argv)
+  return Infra().handle_args(argv)
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+  sys.exit(main(sys.argv))

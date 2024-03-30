@@ -42,7 +42,11 @@
 #include <stddef.h>
 #include <assert.h>
 
-#define list_assert(cond, msg)  assert(cond && msg)
+#ifdef DEBUG
+#  define list_assert(cond, msg)  assert(cond && msg)
+#else
+#  define list_assert(cond, msg)  (void)(0 && (cond))
+#endif
 
 struct list_head
 {

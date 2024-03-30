@@ -98,22 +98,6 @@ extern "C" {
 #define I915_FORMAT_MOD_4_TILED_MTL_RC_CCS fourcc_mod_code(INTEL, 13)
 #endif
 
-#ifndef I915_FORMAT_MOD_4_TILED_MTL_MC_CCS
-//TODO: remove this defination once drm_fourcc.h contains it.
-/*
- * Intel color control surfaces (CCS) for display ver 14 media compression
- *
- * The main surface is tile4 and at plane index 0, the CCS is linear and
- * at index 1. A 64B CCS cache line corresponds to an area of 4x1 tiles in
- * main surface. In other words, 4 bits in CCS map to a main surface cache
- * line pair. The main surface pitch is required to be a multiple of four
- * tile4 widths. For semi-planar formats like NV12, CCS planes follow the
- * Y and UV planes i.e., planes 0 and 1 are used for Y and UV surfaces,
- * planes 2 and 3 for the respective CCS.
- */
-#define I915_FORMAT_MOD_4_TILED_MTL_MC_CCS fourcc_mod_code(INTEL, 14)
-#endif
-
 // clang-format on
 struct driver;
 struct bo;
@@ -256,7 +240,7 @@ enum drv_log_level {
 
 #define _drv_log(level, format, ...)                                                               \
 	do {                                                                                       \
-		drv_log_prefix(level, "minigbm", __func__, __LINE__, format, ##__VA_ARGS__);       \
+		drv_log_prefix(level, "minigbm", __FILE__, __LINE__, format, ##__VA_ARGS__);       \
 	} while (0)
 
 #define drv_loge(format, ...) _drv_log(DRV_LOGE, format, ##__VA_ARGS__)

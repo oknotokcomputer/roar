@@ -12,10 +12,9 @@
 
 struct vn_info_extension_table {
    union {
-      bool enabled[116];
+      bool enabled[111];
       struct {
          bool EXT_4444_formats;
-         bool EXT_attachment_feedback_loop_layout;
          bool EXT_border_color_swizzle;
          bool EXT_calibrated_timestamps;
          bool EXT_color_write_enable;
@@ -29,10 +28,8 @@ struct vn_info_extension_table {
          bool EXT_dynamic_rendering_unused_attachments;
          bool EXT_extended_dynamic_state;
          bool EXT_extended_dynamic_state2;
-         bool EXT_extended_dynamic_state3;
          bool EXT_external_memory_dma_buf;
          bool EXT_fragment_shader_interlock;
-         bool EXT_graphics_pipeline_library;
          bool EXT_host_query_reset;
          bool EXT_image_2d_view_of_3d;
          bool EXT_image_drm_format_modifier;
@@ -95,7 +92,6 @@ struct vn_info_extension_table {
          bool KHR_external_semaphore_capabilities;
          bool KHR_external_semaphore_fd;
          bool KHR_format_feature_flags2;
-         bool KHR_fragment_shading_rate;
          bool KHR_get_memory_requirements2;
          bool KHR_get_physical_device_properties2;
          bool KHR_image_format_list;
@@ -105,7 +101,6 @@ struct vn_info_extension_table {
          bool KHR_maintenance3;
          bool KHR_maintenance4;
          bool KHR_multiview;
-         bool KHR_pipeline_library;
          bool KHR_push_descriptor;
          bool KHR_relaxed_block_layout;
          bool KHR_sampler_mirror_clamp_to_edge;
@@ -143,10 +138,9 @@ struct vn_info_extension {
 };
 
 /* sorted by extension names for bsearch */
-static const uint32_t _vn_info_extension_count = 116;
-static const struct vn_info_extension _vn_info_extensions[116] = {
+static const uint32_t _vn_info_extension_count = 111;
+static const struct vn_info_extension _vn_info_extensions[111] = {
    { "VK_EXT_4444_formats", 341, 1 },
-   { "VK_EXT_attachment_feedback_loop_layout", 340, 2 },
    { "VK_EXT_border_color_swizzle", 412, 1 },
    { "VK_EXT_calibrated_timestamps", 185, 2 },
    { "VK_EXT_color_write_enable", 382, 1 },
@@ -160,10 +154,8 @@ static const struct vn_info_extension _vn_info_extensions[116] = {
    { "VK_EXT_dynamic_rendering_unused_attachments", 500, 1 },
    { "VK_EXT_extended_dynamic_state", 268, 1 },
    { "VK_EXT_extended_dynamic_state2", 378, 1 },
-   { "VK_EXT_extended_dynamic_state3", 456, 2 },
    { "VK_EXT_external_memory_dma_buf", 126, 1 },
    { "VK_EXT_fragment_shader_interlock", 252, 1 },
-   { "VK_EXT_graphics_pipeline_library", 321, 1 },
    { "VK_EXT_host_query_reset", 262, 1 },
    { "VK_EXT_image_2d_view_of_3d", 394, 1 },
    { "VK_EXT_image_drm_format_modifier", 159, 2 },
@@ -226,7 +218,6 @@ static const struct vn_info_extension _vn_info_extensions[116] = {
    { "VK_KHR_external_semaphore_capabilities", 77, 1 },
    { "VK_KHR_external_semaphore_fd", 80, 1 },
    { "VK_KHR_format_feature_flags2", 361, 2 },
-   { "VK_KHR_fragment_shading_rate", 227, 2 },
    { "VK_KHR_get_memory_requirements2", 147, 1 },
    { "VK_KHR_get_physical_device_properties2", 60, 2 },
    { "VK_KHR_image_format_list", 148, 1 },
@@ -236,7 +227,6 @@ static const struct vn_info_extension _vn_info_extensions[116] = {
    { "VK_KHR_maintenance3", 169, 1 },
    { "VK_KHR_maintenance4", 414, 2 },
    { "VK_KHR_multiview", 54, 1 },
-   { "VK_KHR_pipeline_library", 291, 1 },
    { "VK_KHR_push_descriptor", 81, 2 },
    { "VK_KHR_relaxed_block_layout", 145, 1 },
    { "VK_KHR_sampler_mirror_clamp_to_edge", 15, 3 },
@@ -272,7 +262,7 @@ vn_info_wire_format_version(void)
 static inline uint32_t
 vn_info_vk_xml_version(void)
 {
-    return VK_MAKE_API_VERSION(0, 1, 3, 269);
+    return VK_MAKE_API_VERSION(0, 1, 3, 252);
 }
 
 static inline int

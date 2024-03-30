@@ -54,7 +54,7 @@ bool
 tgsi_scan_shader(const struct tgsi_token *tokens,
                  struct tgsi_shader_info *info)
 {
-   unsigned procType, i;
+   uint procType, i;
    struct tgsi_parse_context parse;
    unsigned current_depth = 0;
 
@@ -96,7 +96,7 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
          {
             const struct tgsi_full_instruction *fullinst
                = &parse.FullToken.FullInstruction;
-            unsigned i;
+            uint i;
 
             assert(fullinst->Instruction.Opcode < TGSI_OPCODE_LAST);
             info->opcode_count[fullinst->Instruction.Opcode]++;
@@ -205,18 +205,18 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
                        src->Register.SwizzleY == TGSI_SWIZZLE_Z ||
                        src->Register.SwizzleZ == TGSI_SWIZZLE_Z ||
                        src->Register.SwizzleW == TGSI_SWIZZLE_Z)) {
-                     info->reads_z = true;
+                     info->reads_z = TRUE;
                   }
                }
 
                /* check for indirect register reads */
                if (src->Register.Indirect) {
-                  info->indirect_files |= (1u << src->Register.File);
-                  info->indirect_files_read |= (1u << src->Register.File);
+                  info->indirect_files |= (1 << src->Register.File);
+                  info->indirect_files_read |= (1 << src->Register.File);
                }
 
                if (src->Register.Dimension && src->Dimension.Indirect) {
-                  info->dimension_indirect_files |= (1u << src->Register.File);
+                  info->dimension_indirect_files |= (1 << src->Register.File);
                }
                /* MSAA samplers */
                if (src->Register.File == TGSI_FILE_SAMPLER) {
@@ -232,7 +232,7 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
 
                   if (fullinst->Texture.Texture == TGSI_TEXTURE_2D_MSAA ||
                        fullinst->Texture.Texture == TGSI_TEXTURE_2D_ARRAY_MSAA) {
-                     info->is_msaa_sampler[src->Register.Index] = true;
+                     info->is_msaa_sampler[src->Register.Index] = TRUE;
                   }
                }
             }
@@ -241,11 +241,11 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
             for (i = 0; i < fullinst->Instruction.NumDstRegs; i++) {
                const struct tgsi_full_dst_register *dst = &fullinst->Dst[i];
                if (dst->Register.Indirect) {
-                  info->indirect_files |= (1u << dst->Register.File);
-                  info->indirect_files_written |= (1u << dst->Register.File);
+                  info->indirect_files |= (1 << dst->Register.File);
+                  info->indirect_files_written |= (1 << dst->Register.File);
                }
                if (dst->Register.Dimension && dst->Dimension.Indirect)
-                  info->dimension_indirect_files |= (1u << dst->Register.File);
+                  info->dimension_indirect_files |= (1 << dst->Register.File);
             }
 
             info->num_instructions++;
@@ -256,8 +256,8 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
          {
             const struct tgsi_full_declaration *fulldecl
                = &parse.FullToken.FullDeclaration;
-            const unsigned file = fulldecl->Declaration.File;
-            unsigned reg;
+            const uint file = fulldecl->Declaration.File;
+            uint reg;
 
             if (file >= TGSI_FILE_COUNT) {
                debug_printf("TGSI Error: unknown file %d\n", file);
@@ -297,11 +297,8 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
                unsigned semIndex =
                   fulldecl->Semantic.Index + (reg - fulldecl->Range.First);
 
-               /*
-                * only first 32 regs will appear in this bitfield, if larger
-                * bits will wrap around.
-                */
-               info->file_mask[file] |= (1u << (reg & 31));
+               /* only first 32 regs will appear in this bitfield */
+               info->file_mask[file] |= (1 << reg);
                info->file_count[file]++;
                info->file_max[file] = MAX2(info->file_max[file], (int)reg);
 
@@ -325,11 +322,11 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
                      return false;
                   }
 
-                  info->input_semantic_name[reg] = (uint8_t) semName;
-                  info->input_semantic_index[reg] = (uint8_t) semIndex;
-                  info->input_interpolate[reg] = (uint8_t)fulldecl->Interp.Interpolate;
-                  info->input_interpolate_loc[reg] = (uint8_t)fulldecl->Interp.Location;
-                  info->input_cylindrical_wrap[reg] = (uint8_t)fulldecl->Interp.CylindricalWrap;
+                  info->input_semantic_name[reg] = (ubyte) semName;
+                  info->input_semantic_index[reg] = (ubyte) semIndex;
+                  info->input_interpolate[reg] = (ubyte)fulldecl->Interp.Interpolate;
+                  info->input_interpolate_loc[reg] = (ubyte)fulldecl->Interp.Location;
+                  info->input_cylindrical_wrap[reg] = (ubyte)fulldecl->Interp.CylindricalWrap;
                   info->num_inputs++;
 
                   if (info->num_inputs >= PIPE_MAX_SHADER_INPUTS) {
@@ -382,12 +379,12 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
                   }
 
                   if (semName == TGSI_SEMANTIC_PRIMID)
-                     info->uses_primid = true;
+                     info->uses_primid = TRUE;
                   else if (procType == TGSI_PROCESSOR_FRAGMENT) {
                      if (semName == TGSI_SEMANTIC_POSITION)
-                        info->reads_position = true;
+                        info->reads_position = TRUE;
                      else if (semName == TGSI_SEMANTIC_FACE)
-                        info->uses_frontface = true;
+                        info->uses_frontface = TRUE;
                   }
                }
                else if (file == TGSI_FILE_SYSTEM_VALUE) {
@@ -403,21 +400,21 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
                                                  index + 1);
 
                   if (semName == TGSI_SEMANTIC_INSTANCEID) {
-                     info->uses_instanceid = true;
+                     info->uses_instanceid = TRUE;
                   }
                   else if (semName == TGSI_SEMANTIC_VERTEXID) {
-                     info->uses_vertexid = true;
+                     info->uses_vertexid = TRUE;
                   }
                   else if (semName == TGSI_SEMANTIC_VERTEXID_NOBASE) {
-                     info->uses_vertexid_nobase = true;
+                     info->uses_vertexid_nobase = TRUE;
                   }
                   else if (semName == TGSI_SEMANTIC_BASEVERTEX) {
-                     info->uses_basevertex = true;
+                     info->uses_basevertex = TRUE;
                   }
                   else if (semName == TGSI_SEMANTIC_PRIMID) {
-                     info->uses_primid = true;
+                     info->uses_primid = TRUE;
                   } else if (semName == TGSI_SEMANTIC_INVOCATIONID) {
-                     info->uses_invocationid = true;
+                     info->uses_invocationid = TRUE;
                   }
                }
                else if (file == TGSI_FILE_OUTPUT) {
@@ -427,8 +424,8 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
                      return false;
                   }
 
-                  info->output_semantic_name[reg] = (uint8_t) semName;
-                  info->output_semantic_index[reg] = (uint8_t) semIndex;
+                  info->output_semantic_name[reg] = (ubyte) semName;
+                  info->output_semantic_index[reg] = (ubyte) semIndex;
                   info->num_outputs++;
 
                   if (info->num_outputs >= PIPE_MAX_SHADER_OUTPUTS) {
@@ -438,42 +435,42 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
                   }
 
                   if (semName == TGSI_SEMANTIC_COLOR)
-                     info->colors_written |= 1u << semIndex;
+                     info->colors_written |= 1 << semIndex;
 
                   if (procType == TGSI_PROCESSOR_VERTEX ||
                       procType == TGSI_PROCESSOR_GEOMETRY ||
                       procType == TGSI_PROCESSOR_TESS_CTRL ||
                       procType == TGSI_PROCESSOR_TESS_EVAL) {
                      if (semName == TGSI_SEMANTIC_VIEWPORT_INDEX) {
-                        info->writes_viewport_index = true;
+                        info->writes_viewport_index = TRUE;
                      }
                      else if (semName == TGSI_SEMANTIC_LAYER) {
-                        info->writes_layer = true;
+                        info->writes_layer = TRUE;
                      }
                      else if (semName == TGSI_SEMANTIC_PSIZE) {
-                        info->writes_psize = true;
+                        info->writes_psize = TRUE;
                      }
                      else if (semName == TGSI_SEMANTIC_CLIPVERTEX) {
-                        info->writes_clipvertex = true;
+                        info->writes_clipvertex = TRUE;
                      }
                   }
 
                   if (procType == TGSI_PROCESSOR_FRAGMENT) {
                      if (semName == TGSI_SEMANTIC_POSITION) {
-                        info->writes_z = true;
+                        info->writes_z = TRUE;
                      }
                      else if (semName == TGSI_SEMANTIC_STENCIL) {
-                        info->writes_stencil = true;
+                        info->writes_stencil = TRUE;
                      }
                   }
 
                   if (procType == TGSI_PROCESSOR_VERTEX) {
                      if (semName == TGSI_SEMANTIC_EDGEFLAG) {
-                        info->writes_edgeflag = true;
+                        info->writes_edgeflag = TRUE;
                      }
                   }
                } else if (file == TGSI_FILE_SAMPLER) {
-                  info->samplers_declared |= 1u << reg;
+                  info->samplers_declared |= 1 << reg;
                }
             }
          }
@@ -481,10 +478,10 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
 
       case TGSI_TOKEN_TYPE_IMMEDIATE:
          {
-            unsigned reg = info->immediate_count++;
-            unsigned file = TGSI_FILE_IMMEDIATE;
+            uint reg = info->immediate_count++;
+            uint file = TGSI_FILE_IMMEDIATE;
 
-            info->file_mask[file] |= (1u << reg);
+            info->file_mask[file] |= (1 << reg);
             info->file_count[file]++;
             info->file_max[file] = MAX2(info->file_max[file], (int)reg);
          }
@@ -507,11 +504,11 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
             switch (name) {
             case TGSI_PROPERTY_NUM_CLIPDIST_ENABLED:
                info->num_written_clipdistance = value;
-               info->clipdist_writemask |= (1u << value) - 1;
+               info->clipdist_writemask |= (1 << value) - 1;
                break;
             case TGSI_PROPERTY_NUM_CULLDIST_ENABLED:
                info->num_written_culldistance = value;
-               info->culldist_writemask |= (1u << value) - 1;
+               info->culldist_writemask |= (1 << value) - 1;
                break;
             }
          }
@@ -538,7 +535,7 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
       info->file_max[TGSI_FILE_INPUT] =
             MAX2(info->file_max[TGSI_FILE_INPUT], num_verts - 1);
       for (j = 0; j < num_verts; ++j) {
-         info->file_mask[TGSI_FILE_INPUT] |= (1u << j);
+         info->file_mask[TGSI_FILE_INPUT] |= (1 << j);
       }
    }
 
@@ -554,7 +551,7 @@ tgsi_scan_shader(const struct tgsi_token *tokens,
  * MOV instructions of the form:  MOV OUT[n], IN[n]
  *  
  */
-bool
+boolean
 tgsi_is_passthrough_shader(const struct tgsi_token *tokens)
 {
    struct tgsi_parse_context parse;
@@ -564,7 +561,7 @@ tgsi_is_passthrough_shader(const struct tgsi_token *tokens)
     **/
    if (tgsi_parse_init(&parse, tokens) != TGSI_PARSE_OK) {
       debug_printf("tgsi_parse_init() failed in tgsi_is_passthrough_shader()!\n");
-      return false;
+      return FALSE;
    }
 
    /**
@@ -602,7 +599,7 @@ tgsi_is_passthrough_shader(const struct tgsi_token *tokens)
                 dst->Register.WriteMask != TGSI_WRITEMASK_XYZW)
             {
                tgsi_parse_free(&parse);
-               return false;
+               return FALSE;
             }
          }
          break;
@@ -621,5 +618,5 @@ tgsi_is_passthrough_shader(const struct tgsi_token *tokens)
    tgsi_parse_free(&parse);
 
    /* if we get here, it's a pass-through shader */
-   return true;
+   return TRUE;
 }

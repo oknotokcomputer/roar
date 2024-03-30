@@ -2,9 +2,7 @@
 # Use of this source code is governed under the Apache License, Version 2.0
 # that can be found in the LICENSE file.
 
-from recipe_engine.post_process import DropExpectation, StatusSuccess
-
-PYTHON_VERSION_COMPATIBILITY = 'PY3'
+PYTHON_VERSION_COMPATIBILITY = 'PY2+3'
 
 DEPS = [
   'gitiles',
@@ -50,8 +48,4 @@ def RunSteps(api):
 
 
 def GenTests(api):
-  yield api.test(
-      'basic',
-      api.post_process(StatusSuccess),
-      api.post_process(DropExpectation),
-  )
+  yield api.test('basic')

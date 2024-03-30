@@ -28,9 +28,10 @@ static struct virgl_fence last_signalled_fence = { .fd = -1 };
 static struct hash_table_u64 *virgl_fence_table;
 static mtx_t virgl_fence_table_lock;
 
-static void virgl_fence_table_cleanup_cb(struct hash_entry *entry)
+static void virgl_fence_table_cleanup_cb(UNUSED const void *key, void *data,
+                                         UNUSED void *arg)
 {
-   struct virgl_fence *fence = entry->data;
+   struct virgl_fence *fence = data;
    if (fence->fd >= 0)
       close(fence->fd);
    free(fence);
@@ -39,8 +40,10 @@ static void virgl_fence_table_cleanup_cb(struct hash_entry *entry)
 void
 virgl_fence_table_cleanup(void)
 {
-   _mesa_hash_table_u64_destroy(virgl_fence_table,
-                                virgl_fence_table_cleanup_cb);
+   hash_table_call_foreach(virgl_fence_table->table,
+                           virgl_fence_table_cleanup_cb, NULL);
+
+   _mesa_hash_table_u64_destroy(virgl_fence_table);
 
    virgl_fence_table = NULL;
 
@@ -114,8 +117,8 @@ virgl_fence_set_fd_locked(uint64_t fence_id, int fd)
    struct virgl_fence *fence;
 
    /* walk up all fences and retire signaled ones */
-   hash_table_u64_call_foreach(virgl_fence_table,
-                               virgl_fence_table_retire_cb, NULL);
+   hash_table_call_foreach(virgl_fence_table->table,
+                           virgl_fence_table_retire_cb, NULL);
 
    fence = _mesa_hash_table_u64_search(virgl_fence_table, fence_id);
    if (fence)
@@ -128,7 +131,7 @@ virgl_fence_set_fd_locked(uint64_t fence_id, int fd)
    fence->fd = os_dupfd_cloexec(fd);
    if (fence->fd < 0) {
       free(fence);
-      return -errno;
+      return fd;
    }
 
    fence->id = fence_id;
