@@ -40,7 +40,7 @@ jobs:
       - name: Install required cargo
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          . $HOME/.cargo/env
+          . "/cache/cargo_home/env"
           rupstup install stable
           rustup component add clippy
           cargo install clippy-sarif sarif-fmt
