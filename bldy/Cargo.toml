@@ -1,0 +1,19 @@
+[package]
+name = "bldy"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+libcrosvm = { version = "0.1.0", path = "../libcrosvm" }
+
+
+[patch.crates-io]
+audio_streams = { path = "../libcrosvm/common/audio_streams" }
+base = { path = "../libcrosvm/base" }
+cros_async = { path = "../libcrosvm/cros_async" }
+data_model = { path = "../libcrosvm/common/data_model" }
+libcras = { path = "../libcrosvm/libcras_stub" }                        # ignored by ebuild
+sync = { path = "../libcrosvm/common/sync" }
+minijail = { path = "../libcrosvm/third_party/minijail/rust/minijail" } # ignored by ebuild
