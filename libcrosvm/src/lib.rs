@@ -22,7 +22,7 @@ use base::syslog;
 use base::syslog::LogArgs;
 use base::syslog::LogConfig;
 use cmdline::RunCommand;
-mod crosvm;
+pub mod crosvm;
 use crosvm::cmdline;
 #[cfg(feature = "plugin")]
 use crosvm::config::executable_is_plugin;
@@ -46,7 +46,7 @@ use disk::ImagePartitionType;
 use disk::PartitionInfo;
 #[cfg(feature = "qcow")]
 use disk::QcowFile;
-mod sys;
+pub mod sys;
 use crosvm::cmdline::Command;
 use crosvm::cmdline::CrossPlatformCommands;
 use crosvm::cmdline::CrossPlatformDevicesCommands;
@@ -139,7 +139,7 @@ impl From<sys::ExitState> for CommandStatus {
     }
 }
 
-fn run_vm(cmd: RunCommand, log_config: LogConfig) -> Result<CommandStatus> {
+pub fn run_vm(cmd: RunCommand, log_config: LogConfig) -> Result<CommandStatus> {
     let cfg = match TryInto::<Config>::try_into(cmd) {
         Ok(cfg) => cfg,
         Err(e) => {

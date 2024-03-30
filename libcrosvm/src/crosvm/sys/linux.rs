@@ -6,7 +6,7 @@
 mod android;
 pub mod cmdline;
 pub mod config;
-mod device_helpers;
+pub mod device_helpers;
 #[cfg(feature = "gpu")]
 pub(crate) mod gpu;
 #[cfg(feature = "pci-hotplug")]
@@ -1113,7 +1113,7 @@ fn create_pure_virtual_pcie_root_port(
     Ok(hp_stub)
 }
 
-fn setup_vm_components(cfg: &Config) -> Result<VmComponents> {
+pub fn setup_vm_components(cfg: &Config) -> Result<VmComponents> {
     let initrd_image = if let Some(initrd_path) = &cfg.initrd_path {
         Some(
             open_file_or_duplicate(initrd_path, OpenOptions::new().read(true))
@@ -1444,7 +1444,7 @@ fn run_gz(device_path: Option<&Path>, cfg: Config, components: VmComponents) -> 
     )
 }
 
-fn run_kvm(device_path: Option<&Path>, cfg: Config, components: VmComponents) -> Result<ExitState> {
+pub fn run_kvm(device_path: Option<&Path>, cfg: Config, components: VmComponents) -> Result<ExitState> {
     use devices::KvmKernelIrqChip;
     #[cfg(target_arch = "x86_64")]
     use devices::KvmSplitIrqChip;

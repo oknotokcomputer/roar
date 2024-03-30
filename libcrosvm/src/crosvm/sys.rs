@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 #[cfg(any(target_os = "android", target_os = "linux"))]
-pub(crate) mod linux;
+pub mod linux;
 
 #[cfg(windows)]
 pub(crate) mod windows;
@@ -23,8 +23,8 @@ cfg_if::cfg_if! {
     }
 }
 
-pub(crate) use platform::cmdline;
-pub(crate) use platform::config;
-pub(crate) use platform::config::HypervisorKind;
+pub use platform::cmdline;
+pub use platform::config;
+pub use platform::config::HypervisorKind;
 #[cfg(feature = "crash-report")]
 pub(crate) use platform::setup_emulator_crash_reporting;

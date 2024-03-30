@@ -4,9 +4,9 @@
 
 cfg_if::cfg_if! {
     if #[cfg(any(target_os = "android", target_os = "linux"))] {
-        pub(crate) mod linux;
+        pub mod linux;
         use linux as platform;
-        pub(crate) use crate::crosvm::sys::linux::{run_config, ExitState};
+        pub use crate::crosvm::sys::linux::{run_config, ExitState};
     } else if #[cfg(windows)] {
         pub(crate) mod windows;
         use windows as platform;
@@ -17,13 +17,13 @@ cfg_if::cfg_if! {
     }
 }
 
-pub(crate) use platform::main::cleanup;
-pub(crate) use platform::main::error_to_exit_code;
-pub(crate) use platform::main::get_library_watcher;
-pub(crate) use platform::main::init_log;
-pub(crate) use platform::main::run_command;
+pub use platform::main::cleanup;
+pub use platform::main::error_to_exit_code;
+pub use platform::main::get_library_watcher;
+pub use platform::main::init_log;
+pub use platform::main::run_command;
 #[cfg(feature = "sandbox")]
-pub(crate) use platform::main::sandbox_lower_token;
-pub(crate) use platform::main::start_device;
+pub use platform::main::sandbox_lower_token;
+pub use platform::main::start_device;
 #[cfg(not(feature = "crash-report"))]
-pub(crate) use platform::set_panic_hook;
+pub use platform::set_panic_hook;

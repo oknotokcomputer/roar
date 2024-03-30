@@ -24,7 +24,7 @@ use crate::crosvm::sys::linux::start_devices;
 use crate::CommandStatus;
 use crate::Config;
 
-pub(crate) fn start_device(command: DeviceSubcommand) -> anyhow::Result<()> {
+pub fn start_device(command: DeviceSubcommand) -> anyhow::Result<()> {
     match command {
         DeviceSubcommand::Console(cfg) => run_console_device(cfg),
         DeviceSubcommand::Fs(cfg) => run_fs_device(cfg),
@@ -61,7 +61,7 @@ fn wait_all_children() -> bool {
     false
 }
 
-pub(crate) fn cleanup() {
+pub fn cleanup() {
     // Reap exit status from any child device processes. At this point, all devices should have been
     // dropped in the main process and told to shutdown. Try over a period of 100ms, since it may
     // take some time for the processes to shut down.
@@ -79,13 +79,13 @@ pub fn get_library_watcher() -> std::io::Result<()> {
     Ok(())
 }
 
-pub(crate) fn run_command(command: Commands, _log_args: LogArgs) -> anyhow::Result<()> {
+pub fn run_command(command: Commands, _log_args: LogArgs) -> anyhow::Result<()> {
     match command {
         Commands::Devices(cmd) => start_devices(cmd).context("start_devices subcommand failed"),
     }
 }
 
-pub(crate) fn init_log(log_config: LogConfig, _cfg: &Config) -> anyhow::Result<()> {
+pub fn init_log(log_config: LogConfig, _cfg: &Config) -> anyhow::Result<()> {
     if let Err(e) = syslog::init_with(log_config) {
         eprintln!("failed to initialize syslog: {}", e);
         return Err(anyhow!("failed to initialize syslog: {}", e));
@@ -93,6 +93,6 @@ pub(crate) fn init_log(log_config: LogConfig, _cfg: &Config) -> anyhow::Result<(
     Ok(())
 }
 
-pub(crate) fn error_to_exit_code(_res: &std::result::Result<CommandStatus, anyhow::Error>) -> i32 {
+pub fn error_to_exit_code(_res: &std::result::Result<CommandStatus, anyhow::Error>) -> i32 {
     1
 }
