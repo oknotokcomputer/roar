@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 libcrosvm = { version = "0.1.0", path = "../libcrosvm" }
 
-
 [patch.crates-io]
 audio_streams = { path = "../libcrosvm/common/audio_streams" }
 base = { path = "../libcrosvm/base" }
