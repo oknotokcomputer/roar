@@ -39,13 +39,11 @@ jobs:
         uses: actions/checkout@v4
       - name: Install required cargo
         run: |
-          rupstup install stable
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           . $HOME/.cargo/env
+          rupstup install stable
           rustup component add clippy
           cargo install clippy-sarif sarif-fmt
-
-      - name: Run rust-clippy
-        run: |
           cd ${{ matrix.crate }}
           cargo clippy
           --all-features
