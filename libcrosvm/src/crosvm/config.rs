@@ -63,7 +63,8 @@ use x86_64::CpuIdCall;
 
 pub(crate) use super::sys::HypervisorKind;
 #[cfg(any(target_os = "android", target_os = "linux"))]
-use crate::crosvm::sys::config::SharedDir;
+pub use crate::crosvm::sys::config::SharedDir;
+pub use crate::crosvm::sys::config::SharedDirKind;
 
 cfg_if::cfg_if! {
     if #[cfg(any(target_os = "android", target_os = "linux"))] {
