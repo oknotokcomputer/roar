@@ -145,7 +145,7 @@ impl P9 {
         if tag.len() > ::std::u16::MAX as usize {
             return Err(P9Error::TagTooLong(tag.len()));
         }
-
+        
         let len = tag.len() as u16;
         let mut cfg = Vec::with_capacity(tag.len() + mem::size_of::<u16>());
         cfg.push(len as u8);
