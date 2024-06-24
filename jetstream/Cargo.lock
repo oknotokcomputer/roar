@@ -213,6 +213,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
+name = "base64"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
 name = "base64ct"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1111,7 +1117,7 @@ version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b8fcc794035347fb64beda2d3b462595dd2753e3f268d89c5aae77e8cf2c310"
 dependencies = [
- "base64",
+ "base64 0.21.7",
  "serde",
 ]
 
@@ -1360,32 +1366,44 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.21.10"
+version = "0.23.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9d5a6813c0759e4609cd494e8e725babae6a2ca7b62a5536a13daaec6fcb7ba"
+checksum = "05cff451f60db80f490f3c182b77c35260baace73209e9cdbbe526bfe3a4d402"
 dependencies = [
+ "aws-lc-rs",
  "log",
- "ring 0.17.8",
+ "once_cell",
+ "rustls-pki-types",
  "rustls-webpki",
- "sct",
+ "subtle",
+ "zeroize",
 ]
 
 [[package]]
 name = "rustls-pemfile"
-version = "1.0.4"
+version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c74cae0a4cf6ccbbf5f359f08efdf8ee7e1dc532573bf0db71968cb56b1448c"
+checksum = "29993a25686778eb88d4189742cd713c9bce943bc54251a33509dc63cbacf73d"
 dependencies = [
- "base64",
+ "base64 0.22.1",
+ "rustls-pki-types",
 ]
 
 [[package]]
-name = "rustls-webpki"
-version = "0.101.7"
+name = "rustls-pki-types"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b6275d1ee7a1cd780b64aca7726599a1dbc893b1e64144529e55c3c2f745765"
+checksum = "976295e77ce332211c0d24d92c0e83e50f5c5f046d11082cea19f3df13a3562d"
+
+[[package]]
+name = "rustls-webpki"
+version = "0.102.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff448f7e92e913c4b7d4c6d8e4540a1724b319b4152b8aef6d4cf8339712b33e"
 dependencies = [
+ "aws-lc-rs",
  "ring 0.17.8",
+ "rustls-pki-types",
  "untrusted 0.9.0",
 ]
 
@@ -1397,9 +1415,9 @@ checksum = "7ffc183a10b4478d04cbbbfc96d0873219d962dd5accaff2ffbd4ceb7df837f4"
 
 [[package]]
 name = "s2n-codec"
-version = "0.35.1"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ec4e4fe5f49e893ea0f9b9126ca791b07e1568514cfd40dd044b9f796f317cc"
+checksum = "c0b0fa41097d44e5e9a69ba65f955f5de56ffdfc44865432d473e6b3ae989c28"
 dependencies = [
  "byteorder",
  "bytes",
@@ -1408,9 +1426,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic"
-version = "1.35.1"
+version = "1.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1b4e379c823eb020bcda071cc340813764f7583d33fb9fd3663c99b94f030fd"
+checksum = "34129964c5307d64313d974ae9d307262ec96900fe5201ced1e0f79f7b8f0a76"
 dependencies = [
  "bytes",
  "cfg-if",
@@ -1432,9 +1450,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-core"
-version = "0.35.1"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f14d9c616008d5641274b225a9bfa2f6fb1f6aee47b330697cad7376b0efadfa"
+checksum = "07f233b68f6e2025832002103c99715c3544dbc76b8974de6567bd8475ecc195"
 dependencies = [
  "atomic-waker",
  "byteorder",
@@ -1453,9 +1471,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-crypto"
-version = "0.35.1"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16759282176ba0c093309c985e9e8ab6c87a4d1d44967a20ba1b4f350cfa0f9d"
+checksum = "9b6490c8fca84ac01b27281883d574fd53f56a8e40c20f35fff4fa9a87f90a52"
 dependencies = [
  "aws-lc-rs",
  "cfg-if",
@@ -1468,9 +1486,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-platform"
-version = "0.35.1"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98b8f94c051615b83a7912e9fd5a324a7d9241f2e282333567cdd404e556c4ff"
+checksum = "02e83e90902e6fc871f25b4797ec8039039bd02a85985179ab9c0f33900a76d8"
 dependencies = [
  "cfg-if",
  "futures",
@@ -1483,9 +1501,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-rustls"
-version = "0.35.1"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ad60063becb0be2cd796eda40e196a7195cbfaee7bd5e7e33cf904305b1bc25"
+checksum = "c77063ab92c24f0dd8d669072d5016504b708fe5c7a75f10bfa58dee82ad1d14"
 dependencies = [
  "bytes",
  "rustls",
@@ -1497,9 +1515,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-tls"
-version = "0.35.1"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddf60bd0babf9426952097ea7e952dceafb0c69140f18af6b443d10ca788c660"
+checksum = "d7f29e9ccf7d6a58edd21ea77060848d6dc9327e629f59972eedb746b53217a7"
 dependencies = [
  "bytes",
  "errno",
@@ -1512,9 +1530,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-tls-default"
-version = "0.35.1"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77e0a30818a7736cac41cd2649b1fef0a3c09c0fb931f8065c1defa8ebb4c465"
+checksum = "35eab22674c2ac6726410ee9ba1d450fe2dfbb0bd04c3cb83f6e59d2a4cea45d"
 dependencies = [
  "s2n-quic-rustls",
  "s2n-quic-tls",
@@ -1522,9 +1540,9 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-transport"
-version = "0.35.1"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f58fe4e616fd8ed69a6c28ea3ce1c920ea0ef76ebca5997184c4c44c92d5861a"
+checksum = "f3217e89699eb8ae1f1866a8240310de0176c1f07b4702fd9c461daf99eee83b"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1567,16 +1585,6 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
-
-[[package]]
-name = "sct"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da046153aa2352493d6cb7da4b6e5c0c057d8a1d0a9aa8560baffdd945acd414"
-dependencies = [
- "ring 0.17.8",
- "untrusted 0.9.0",
-]
 
 [[package]]
 name = "serde"
