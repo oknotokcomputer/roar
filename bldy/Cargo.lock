@@ -314,6 +314,7 @@ dependencies = [
  "devices",
  "jail",
  "libcrosvm",
+ "p9",
  "sentry",
  "serde",
  "serde_json",

@@ -99,7 +99,7 @@ static ALLOCATOR: scudo::GlobalScudoAllocator = scudo::GlobalScudoAllocator;
 #[repr(i32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// Exit code from crosvm,
-enum CommandStatus {
+pub enum CommandStatus {
     /// Exit with success. Also used to mean VM stopped successfully.
     SuccessOrVmStop = 0,
     /// VM requested reset.

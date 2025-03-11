@@ -1,0 +1,11 @@
+[book]
+authors = ["sevki"]
+language = "en"
+multilingual = false
+src = "okLinux/docs"
+title = "okLinux"
+
+# additional css https://raw.githubusercontent.com/oknotokcomputer/okcss/main/ok.css
+[output.html]
+additional-css = ["ok.css"]
+theme = "theme"
